@@ -3,13 +3,23 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CONSENSUS_CONSENSUS_H
-#define BITCOIN_CONSENSUS_CONSENSUS_H
+#ifndef FUTUROCOIN_CONSENSUS_CONSENSUS_H
+#define FUTUROCOIN_CONSENSUS_CONSENSUS_H
 
 /** The maximum allowed size for a serialized block, in bytes (network rule) */
-static const unsigned int MAX_BLOCK_SIZE = 1000000;
+static const unsigned int MAX_LEGACY_BLOCK_SIZE = (2 * 1000 * 1000);
+
+inline unsigned int MaxBlockSize()
+{
+    /*As opposed to Dash, in Futuro the max block size is set to 2MB by default. */
+    return MAX_LEGACY_BLOCK_SIZE;
+}
 /** The maximum allowed number of signature check operations in a block (network rule) */
-static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
+inline unsigned int MaxBlockSigOps()
+{
+    return MaxBlockSize() / 50;
+}
+
 /** Coinbase transaction outputs can only be spent after this number of new blocks (network rule) */
 static const int COINBASE_MATURITY = 100;
 
@@ -22,4 +32,4 @@ enum {
     LOCKTIME_MEDIAN_TIME_PAST = (1 << 1),
 };
 
-#endif // BITCOIN_CONSENSUS_CONSENSUS_H
+#endif // FUTUROCOIN_CONSENSUS_CONSENSUS_H

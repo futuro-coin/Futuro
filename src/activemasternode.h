@@ -13,9 +13,8 @@ class CActiveMasternode;
 
 static const int ACTIVE_MASTERNODE_INITIAL          = 0; // initial state
 static const int ACTIVE_MASTERNODE_SYNC_IN_PROCESS  = 1;
-static const int ACTIVE_MASTERNODE_INPUT_TOO_NEW    = 2;
-static const int ACTIVE_MASTERNODE_NOT_CAPABLE      = 3;
-static const int ACTIVE_MASTERNODE_STARTED          = 4;
+static const int ACTIVE_MASTERNODE_NOT_CAPABLE      = 2;
+static const int ACTIVE_MASTERNODE_STARTED          = 3;
 
 extern CActiveMasternode activeMasternode;
 
@@ -25,8 +24,7 @@ class CActiveMasternode
 public:
     enum masternode_type_enum_t {
         MASTERNODE_UNKNOWN = 0,
-        MASTERNODE_REMOTE  = 1,
-        MASTERNODE_LOCAL   = 2
+        MASTERNODE_REMOTE  = 1
     };
 
 private:
@@ -38,7 +36,7 @@ private:
     bool fPingerEnabled;
 
     /// Ping Masternode
-    bool SendMasternodePing();
+    bool SendMasternodePing(CConnman& connman);
 
 public:
     // Keys for the active Masternode
@@ -46,33 +44,33 @@ public:
     CKey keyMasternode;
 
     // Initialized while registering Masternode
-    CTxIn vin;
+    COutPoint outpoint;
     CService service;
 
     int nState; // should be one of ACTIVE_MASTERNODE_XXXX
     std::string strNotCapableReason;
+
 
     CActiveMasternode()
         : eType(MASTERNODE_UNKNOWN),
           fPingerEnabled(false),
           pubKeyMasternode(),
           keyMasternode(),
-          vin(),
+          outpoint(),
           service(),
           nState(ACTIVE_MASTERNODE_INITIAL)
     {}
 
     /// Manage state of active Masternode
-    void ManageState();
+    void ManageState(CConnman& connman);
 
     std::string GetStateString() const;
     std::string GetStatus() const;
     std::string GetTypeString() const;
 
 private:
-    void ManageStateInitial();
+    void ManageStateInitial(CConnman& connman);
     void ManageStateRemote();
-    void ManageStateLocal();
 };
 
 #endif

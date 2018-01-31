@@ -1,0 +1,22 @@
+[Unit]
+Description=FuturoCoin's distributed currency daemon
+After=network.target
+
+[Service]
+User=futurocoincore
+Group=futurocoincore
+
+Type=forking
+PIDFile=/var/lib/futurocoind/futurocoind.pid
+ExecStart=/usr/bin/futurocoind -daemon -pid=/var/lib/futurocoind/futurocoind.pid \
+-conf=/etc/futurocoincore/futurocoin.conf -datadir=/var/lib/futurocoind -disablewallet
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=2s
+StartLimitInterval=120s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

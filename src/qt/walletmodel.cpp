@@ -14,13 +14,14 @@
 
 #include "base58.h"
 #include "keystore.h"
-#include "main.h"
+#include "validation.h"
+#include "net.h" // for g_connman
 #include "sync.h"
 #include "ui_interface.h"
+#include "util.h" // for GetBoolArg
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h" // for BackupWallet
 
-#include "darksend.h"
 #include "instantx.h"
 #include "spork.h"
 
@@ -45,8 +46,7 @@ WalletModel::WalletModel(const PlatformStyle *platformStyle, CWallet *wallet, Op
     cachedWatchImmatureBalance(0),
     cachedEncryptionStatus(Unencrypted),
     cachedNumBlocks(0),
-    cachedTxLocks(0),
-    cachedPrivateSendRounds(0)
+    cachedTxLocks(0)
 {
     fHaveWatchOnly = wallet->HaveWatchOnly();
     fForceCheckBalanceChanged = false;
@@ -83,12 +83,6 @@ CAmount WalletModel::getBalance(const CCoinControl *coinControl) const
     }
 
     return wallet->GetBalance();
-}
-
-
-CAmount WalletModel::getAnonymizedBalance() const
-{
-    return wallet->GetAnonymizedBalance();
 }
 
 CAmount WalletModel::getUnconfirmedBalance() const
@@ -141,13 +135,12 @@ void WalletModel::pollBalanceChanged()
     if(!lockWallet)
         return;
 
-    if(fForceCheckBalanceChanged || chainActive.Height() != cachedNumBlocks || nPrivateSendRounds != cachedPrivateSendRounds || cachedTxLocks != nCompleteTXLocks)
+    if(fForceCheckBalanceChanged || chainActive.Height() != cachedNumBlocks || cachedTxLocks != nCompleteTXLocks)
     {
         fForceCheckBalanceChanged = false;
 
         // Balance and number of transactions might have changed
         cachedNumBlocks = chainActive.Height();
-        cachedPrivateSendRounds = nPrivateSendRounds;
 
         checkBalanceChanged();
         if(transactionTableModel)
@@ -160,7 +153,6 @@ void WalletModel::checkBalanceChanged()
     CAmount newBalance = getBalance();
     CAmount newUnconfirmedBalance = getUnconfirmedBalance();
     CAmount newImmatureBalance = getImmatureBalance();
-    CAmount newAnonymizedBalance = getAnonymizedBalance();
     CAmount newWatchOnlyBalance = 0;
     CAmount newWatchUnconfBalance = 0;
     CAmount newWatchImmatureBalance = 0;
@@ -171,19 +163,17 @@ void WalletModel::checkBalanceChanged()
         newWatchImmatureBalance = getWatchImmatureBalance();
     }
 
-    if(cachedBalance != newBalance || cachedUnconfirmedBalance != newUnconfirmedBalance || cachedImmatureBalance != newImmatureBalance ||
-        cachedAnonymizedBalance != newAnonymizedBalance || cachedTxLocks != nCompleteTXLocks ||
+    if(cachedBalance != newBalance || cachedUnconfirmedBalance != newUnconfirmedBalance || cachedImmatureBalance != newImmatureBalance || cachedTxLocks != nCompleteTXLocks ||
         cachedWatchOnlyBalance != newWatchOnlyBalance || cachedWatchUnconfBalance != newWatchUnconfBalance || cachedWatchImmatureBalance != newWatchImmatureBalance)
     {
         cachedBalance = newBalance;
         cachedUnconfirmedBalance = newUnconfirmedBalance;
         cachedImmatureBalance = newImmatureBalance;
-        cachedAnonymizedBalance = newAnonymizedBalance;
         cachedTxLocks = nCompleteTXLocks;
         cachedWatchOnlyBalance = newWatchOnlyBalance;
         cachedWatchUnconfBalance = newWatchUnconfBalance;
         cachedWatchImmatureBalance = newWatchImmatureBalance;
-        Q_EMIT balanceChanged(newBalance, newUnconfirmedBalance, newImmatureBalance, newAnonymizedBalance,
+        Q_EMIT balanceChanged(newBalance, newUnconfirmedBalance, newImmatureBalance,
                             newWatchOnlyBalance, newWatchUnconfBalance, newWatchImmatureBalance);
     }
 }
@@ -261,7 +251,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             total += subtotal;
         }
         else
-        {   // User-entered dash address / amount:
+        {   // User-entered futurocoin address / amount:
             if(!validateAddress(rcp.address))
             {
                 return InvalidAddress;
@@ -304,27 +294,23 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         CWalletTx *newTx = transaction.getTransaction();
         CReserveKey *keyChange = transaction.getPossibleKeyChange();
 
-        if(recipients[0].fUseInstantSend && total > sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE)*COIN){
+        if(sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE) > 0 &&
+           total > sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE)*COIN){
             Q_EMIT message(tr("Send Coins"), tr("InstantSend doesn't support sending values that high yet. Transactions are currently limited to %1 DASH.").arg(sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE)),
                          CClientUIInterface::MSG_ERROR);
             return TransactionCreationFailed;
         }
 
-        bool fCreated = wallet->CreateTransaction(vecSend, *newTx, *keyChange, nFeeRequired, nChangePosRet, strFailReason, coinControl, true, recipients[0].inputType, recipients[0].fUseInstantSend);
+        bool fCreated = wallet->CreateTransaction(vecSend, *newTx, *keyChange, nFeeRequired, nChangePosRet, strFailReason, coinControl, true, recipients[0].inputType);
         transaction.setTransactionFee(nFeeRequired);
         if (fSubtractFeeFromAmount && fCreated)
             transaction.reassignAmounts(nChangePosRet);
 
-        if(recipients[0].fUseInstantSend) {
-            if(newTx->GetValueOut() > sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE)*COIN) {
-                Q_EMIT message(tr("Send Coins"), tr("InstantSend doesn't support sending values that high yet. Transactions are currently limited to %1 DASH.").arg(sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE)),
-                             CClientUIInterface::MSG_ERROR);
-                return TransactionCreationFailed;
-            }
-            if(newTx->vin.size() > CTxLockRequest::WARN_MANY_INPUTS) {
-                Q_EMIT message(tr("Send Coins"), tr("Used way too many inputs (>%1) for this InstantSend transaction, fees could be huge.").arg(CTxLockRequest::WARN_MANY_INPUTS),
-                             CClientUIInterface::MSG_WARNING);
-            }
+        if(sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE) > 0 &&
+           newTx->GetValueOut() > sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE)*COIN) {
+            Q_EMIT message(tr("Send Coins"), tr("InstantSend doesn't support sending values that high yet. Transactions are currently limited to %1 DASH.").arg(sporkManager.GetSporkValue(SPORK_5_INSTANTSEND_MAX_VALUE)),
+                         CClientUIInterface::MSG_ERROR);
+            return TransactionCreationFailed;
         }
 
         if(!fCreated)
@@ -372,7 +358,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction &tran
                 rcp.paymentRequest.SerializeToString(&value);
                 newTx->vOrderForm.push_back(make_pair(key, value));
             }
-            else if (!rcp.message.isEmpty()) // Message from normal dash:URI (dash:XyZ...?message=example)
+            else if (!rcp.message.isEmpty()) // Message from normal futurocoin:URI (futurocoin:XyZ...?message=example)
             {
                 newTx->vOrderForm.push_back(make_pair("Message", rcp.message.toStdString()));
             }
@@ -380,7 +366,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction &tran
 
         CReserveKey *keyChange = transaction.getPossibleKeyChange();
 
-        if(!wallet->CommitTransaction(*newTx, *keyChange, recipients[0].fUseInstantSend ? NetMsgType::TXLOCKREQUEST : NetMsgType::TX))
+        if(!wallet->CommitTransaction(*newTx, *keyChange, g_connman.get(), NetMsgType::TXLOCKREQUEST))
             return TransactionCommitFailed;
 
         CTransaction* t = (CTransaction*)newTx;
@@ -448,13 +434,9 @@ WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
     {
         return Unencrypted;
     }
-    else if(wallet->IsLocked(true))
+    else if(wallet->IsLocked())
     {
         return Locked;
-    }
-    else if (wallet->IsLocked())
-    {
-        return UnlockedForMixingOnly;
     }
     else
     {
@@ -476,17 +458,17 @@ bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphr
     }
 }
 
-bool WalletModel::setWalletLocked(bool locked, const SecureString &passPhrase, bool fMixing)
+bool WalletModel::setWalletLocked(bool locked, const SecureString &passPhrase)
 {
-    if(locked)
+    if (locked)
     {
         // Lock
-        return wallet->Lock(fMixing);
+        return wallet->Lock();
     }
     else
     {
         // Unlock
-        return wallet->Unlock(passPhrase, fMixing);
+        return wallet->Unlock(passPhrase);
     }
 }
 
@@ -573,49 +555,39 @@ void WalletModel::unsubscribeFromCoreSignals()
 }
 
 // WalletModel::UnlockContext implementation
-WalletModel::UnlockContext WalletModel::requestUnlock(bool fForMixingOnly)
+WalletModel::UnlockContext WalletModel::requestUnlock()
 {
     EncryptionStatus encStatusOld = getEncryptionStatus();
 
     // Wallet was completely locked
     bool was_locked = (encStatusOld == Locked);
-    // Wallet was unlocked for mixing
-    bool was_mixing = (encStatusOld == UnlockedForMixingOnly);
-    // Wallet was unlocked for mixing and now user requested to fully unlock it
-    bool fMixingToFullRequested = !fForMixingOnly && was_mixing;
 
-    if(was_locked || fMixingToFullRequested) {
+    if (was_locked) {
         // Request UI to unlock wallet
-        Q_EMIT requireUnlock(fForMixingOnly);
+        Q_EMIT requireUnlock();
     }
 
     EncryptionStatus encStatusNew = getEncryptionStatus();
 
-    // Wallet was locked, user requested to unlock it for mixing and failed to do so
-    bool fMixingUnlockFailed = fForMixingOnly && !(encStatusNew == UnlockedForMixingOnly);
-    // Wallet was unlocked for mixing, user requested to fully unlock it and failed
-    bool fMixingToFullFailed = fMixingToFullRequested && !(encStatusNew == Unlocked);
     // If wallet is still locked, unlock failed or was cancelled, mark context as invalid
-    bool fInvalid = (encStatusNew == Locked) || fMixingUnlockFailed || fMixingToFullFailed;
-    // Wallet was not locked in any way or user tried to unlock it for mixing only and succeeded, keep it unlocked
-    bool fKeepUnlocked = !was_locked || (fForMixingOnly && !fMixingUnlockFailed);
+    bool fInvalid = (encStatusNew == Locked);
+    // Wallet was not locked in any way keep it unlocked
+    bool fKeepUnlocked = !was_locked;
 
-    return UnlockContext(this, !fInvalid, !fKeepUnlocked, was_mixing);
+    return UnlockContext(this, !fInvalid, !fKeepUnlocked);
 }
 
-WalletModel::UnlockContext::UnlockContext(WalletModel *wallet, bool valid, bool was_locked, bool was_mixing):
+WalletModel::UnlockContext::UnlockContext(WalletModel *wallet, bool valid, bool was_locked):
         wallet(wallet),
         valid(valid),
-        was_locked(was_locked),
-        was_mixing(was_mixing)
-{
-}
+        was_locked(was_locked)
+{}
 
 WalletModel::UnlockContext::~UnlockContext()
 {
-    if(valid && (was_locked || was_mixing))
+    if (valid && was_locked)
     {
-        wallet->setWalletLocked(true, "", was_mixing);
+        wallet->setWalletLocked(true, "");
     }
 }
 
@@ -624,7 +596,6 @@ void WalletModel::UnlockContext::CopyFrom(const UnlockContext& rhs)
     // Transfer context; old object no longer relocks wallet
     *this = rhs;
     rhs.was_locked = false;
-    rhs.was_mixing = false;
 }
 
 bool WalletModel::getPubKey(const CKeyID &address, CPubKey& vchPubKeyOut) const
@@ -646,7 +617,7 @@ void WalletModel::getOutputs(const std::vector<COutPoint>& vOutpoints, std::vect
         if (!wallet->mapWallet.count(outpoint.hash)) continue;
         int nDepth = wallet->mapWallet[outpoint.hash].GetDepthInMainChain();
         if (nDepth < 0) continue;
-        COutput out(&wallet->mapWallet[outpoint.hash], outpoint.n, nDepth, true);
+        COutput out(&wallet->mapWallet[outpoint.hash], outpoint.n, nDepth, true, true);
         vOutputs.push_back(out);
     }
 }
@@ -673,7 +644,7 @@ void WalletModel::listCoins(std::map<QString, std::vector<COutput> >& mapCoins) 
         if (!wallet->mapWallet.count(outpoint.hash)) continue;
         int nDepth = wallet->mapWallet[outpoint.hash].GetDepthInMainChain();
         if (nDepth < 0) continue;
-        COutput out(&wallet->mapWallet[outpoint.hash], outpoint.n, nDepth, true);
+        COutput out(&wallet->mapWallet[outpoint.hash], outpoint.n, nDepth, true, true);
         if (outpoint.n < out.tx->vout.size() && wallet->IsMine(out.tx->vout[outpoint.n]) == ISMINE_SPENDABLE)
             vCoins.push_back(out);
     }
@@ -685,7 +656,7 @@ void WalletModel::listCoins(std::map<QString, std::vector<COutput> >& mapCoins) 
         while (wallet->IsChange(cout.tx->vout[cout.i]) && cout.tx->vin.size() > 0 && wallet->IsMine(cout.tx->vin[0]))
         {
             if (!wallet->mapWallet.count(cout.tx->vin[0].prevout.hash)) break;
-            cout = COutput(&wallet->mapWallet[cout.tx->vin[0].prevout.hash], cout.tx->vin[0].prevout.n, 0, true);
+            cout = COutput(&wallet->mapWallet[cout.tx->vin[0].prevout.hash], cout.tx->vin[0].prevout.n, 0, true, true);
         }
 
         CTxDestination address;
@@ -741,4 +712,24 @@ bool WalletModel::saveReceiveRequest(const std::string &sAddress, const int64_t 
         return wallet->EraseDestData(dest, key);
     else
         return wallet->AddDestData(dest, key, sRequest);
+}
+
+bool WalletModel::transactionCanBeAbandoned(uint256 hash) const
+{
+    LOCK2(cs_main, wallet->cs_wallet);
+    const CWalletTx *wtx = wallet->GetWalletTx(hash);
+    if (!wtx || wtx->isAbandoned() || wtx->GetDepthInMainChain() > 0 || wtx->InMempool())
+        return false;
+    return true;
+}
+
+bool WalletModel::abandonTransaction(uint256 hash) const
+{
+    LOCK2(cs_main, wallet->cs_wallet);
+    return wallet->AbandonTransaction(hash);
+}
+
+bool WalletModel::hdEnabled() const
+{
+    return wallet->IsHDEnabled();
 }

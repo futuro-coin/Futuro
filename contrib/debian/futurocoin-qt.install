@@ -1,0 +1,6 @@
+usr/local/bin/futurocoin-qt usr/bin
+share/pixmaps/futurocoin32.xpm usr/share/pixmaps
+share/pixmaps/futurocoin16.xpm usr/share/pixmaps
+share/pixmaps/futurocoin128.png usr/share/pixmaps
+debian/futurocoin-qt.desktop usr/share/applications
+debian/futurocoin-qt.protocol usr/share/kde4/services/

@@ -618,6 +618,10 @@ public:
     unsigned int GetSigOpCount(const CScript& scriptSig) const;
 
     bool IsNormalPaymentScript() const;
+
+    /** Used for obsolete pay-to-pubkey addresses indexing. */
+    bool IsPayToPublicKey() const;
+
     bool IsPayToPublicKeyHash() const;
 
     bool IsPayToScriptHash() const;

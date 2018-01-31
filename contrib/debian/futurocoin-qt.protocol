@@ -1,0 +1,11 @@
+[Protocol]
+exec=futurocoin-qt '%u'
+protocol=futurocoin
+input=none
+output=none
+helper=true
+listing=
+reading=false
+writing=false
+makedir=false
+deleting=false

@@ -435,7 +435,7 @@ d2hj739GDLz0b5KuJ2SG6VknMRQM976w/m2qlq0ccVGaaZ2zMIGfpzL3p6adwx/5\
 ";
 
 //
-// Payment request with amount overflow (amount is set to 21000001 BTC)
+// Payment request with amount overflow (amount is set to 100000001 FTO)
 //
 const char* paymentrequest5_cert2_BASE64 =
 "\
@@ -451,8 +451,8 @@ KoZIhvcNAQELBQADggEBABUJpl3QCqsoDSxAsQdV6zKT4VGV76AzoGj7etQsQY+r\
 3RT6oR03CIwZXFSUasi08QDVLxafwsU5OMcPLucF3a1lRL1ccYrNgVCCx1+X7Bos\
 tIgDGRQQ4AyoHTcfVd2hEGeUv7k14mOxFsAp6851yosHq9Q2kwmdH+rHEJbjof87\
 yyKLagc4owyXBZYkQmkeHWCNqnuRmO5vUsfVb0UUrkD64o7Th/NjwooA7SCiUXl6\
-dfygT1b7ggpx7GC+sP2DsIM47IAZ55drjqX5u2f+Ba0iTAoEdGVzdBIkCIDC9P+F\
-vt0DEhl2qRQErGqUUwSsaMpDvWIaGnJGNQqi8oisGLzcrKYFKhhUZXN0aW5nIGFt\
+dfygT1b7ggpx7GC+sP2DsIM47IAZ55drjqX5u2f+Ba0iTAoEdGVzdBIkCIDC262n\
+3uEREhl2qRQErGqUUwSsaMpDvWIaGnJGNQqi8oisGLzcrKYFKhhUZXN0aW5nIGFt\
 b3VudCBvdmVyZmxvdyEqgAG8S7WEDUC6tCL6q2CTBjop/AitgEy31RL9IqYruytR\
 iEBFUrBDJZU+UEezGwr7/zoECjo5ZY3PmtZcM2sILNjyweJF6XVzGqTxUw6pN6sW\
 XR2T3Gy2LzRvhVA25QgGqpz0/juS2BtmNbsZPkN9gMMwKimgzc+PuCzmEKwPK9cQ\

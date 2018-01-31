@@ -1,0 +1,12 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=FuturoCoin
+Comment=FuturoCoin P2P Cryptocurrency
+Comment[fr]=FuturoCoin, monnaie virtuelle cryptographique pair à pair
+Comment[tr]=FuturoCoin, eşten eşe kriptografik sanal para birimi
+Exec=futurocoin-qt %u
+Terminal=false
+Type=Application
+Icon=futurocoin128
+MimeType=x-scheme-handler/futurocoin;
+Categories=Office;Finance;

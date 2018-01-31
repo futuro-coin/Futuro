@@ -1,6 +1,6 @@
 all:
-	$(MAKE) -C .. dash_test
+	$(MAKE) -C .. futurocoin_test
 clean:
-	$(MAKE) -C .. dash_test_clean
+	$(MAKE) -C .. futurocoin_test_clean
 check:
-	$(MAKE) -C .. dash_test_check
+	$(MAKE) -C .. futurocoin_test_check

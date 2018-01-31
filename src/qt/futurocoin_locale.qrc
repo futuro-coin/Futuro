@@ -1,0 +1,20 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource prefix="/translations">
+        <file alias="bg">locale/futurocoin_bg.qm</file>
+        <file alias="de">locale/futurocoin_de.qm</file>
+        <file alias="en">locale/futurocoin_en.qm</file>
+        <file alias="es">locale/futurocoin_es.qm</file>
+        <file alias="fi">locale/futurocoin_fi.qm</file>
+        <file alias="fr">locale/futurocoin_fr.qm</file>
+        <file alias="it">locale/futurocoin_it.qm</file>
+        <file alias="ja">locale/futurocoin_ja.qm</file>
+        <file alias="pl">locale/futurocoin_pl.qm</file>
+        <file alias="pt">locale/futurocoin_pt.qm</file>
+        <file alias="ru">locale/futurocoin_ru.qm</file>
+        <file alias="sk">locale/futurocoin_sk.qm</file>
+        <file alias="sv">locale/futurocoin_sv.qm</file>
+        <file alias="vi">locale/futurocoin_vi.qm</file>
+        <file alias="zh_CN">locale/futurocoin_zh_CN.qm</file>
+        <file alias="zh_TW">locale/futurocoin_zh_TW.qm</file>
+    </qresource>
+</RCC>

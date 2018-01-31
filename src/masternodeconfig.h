@@ -20,16 +20,15 @@ public:
         std::string alias;
         std::string ip;
         std::string privKey;
-        std::string txHash;
-        std::string outputIndex;
+        std::string payee;
     public:
 
-        CMasternodeEntry(std::string alias, std::string ip, std::string privKey, std::string txHash, std::string outputIndex) {
+        CMasternodeEntry(std::string alias, std::string ip,
+                         std::string privKey, std::string payee) {
             this->alias = alias;
             this->ip = ip;
             this->privKey = privKey;
-            this->txHash = txHash;
-            this->outputIndex = outputIndex;
+            this->payee = payee;
         }
 
         const std::string& getAlias() const {
@@ -40,14 +39,6 @@ public:
             this->alias = alias;
         }
 
-        const std::string& getOutputIndex() const {
-            return outputIndex;
-        }
-
-        void setOutputIndex(const std::string& outputIndex) {
-            this->outputIndex = outputIndex;
-        }
-
         const std::string& getPrivKey() const {
             return privKey;
         }
@@ -56,12 +47,12 @@ public:
             this->privKey = privKey;
         }
 
-        const std::string& getTxHash() const {
-            return txHash;
+        const std::string& getPayee() const {
+            return payee;
         }
 
-        void setTxHash(const std::string& txHash) {
-            this->txHash = txHash;
+        void setPayee(const std::string& payee) {
+            this->payee = payee;
         }
 
         const std::string& getIp() const {
@@ -79,7 +70,8 @@ public:
 
     void clear();
     bool read(std::string& strErr);
-    void add(std::string alias, std::string ip, std::string privKey, std::string txHash, std::string outputIndex);
+    void add(std::string alias, std::string ip,
+             std::string privKey, std::string payee);
 
     std::vector<CMasternodeEntry>& getEntries() {
         return entries;
@@ -91,9 +83,6 @@ public:
 
 private:
     std::vector<CMasternodeEntry> entries;
-
-
 };
-
 
 #endif /* SRC_MASTERNODECONFIG_H_ */
