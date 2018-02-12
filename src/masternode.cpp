@@ -516,8 +516,17 @@ bool CMasternodeBroadcast::Update(CMasternode* pmn, int& nDos, CConnman& connman
 
 bool CMasternodeBroadcast::CheckMasternode(int& nDos)
 {
-    // we are a masternode with the same vin (i.e. already activated) and this mnb is ours (matches our Masternode privkey)
-    // so nothing to do here for us
+    if (!masternodeListManager.IsMNActive(pubKeyMasternode)) {
+        LogPrint("masternode", "CMasternodeBroadcast::CheckMasternode -- "
+                 "Unauthorized mn broadcast, node pubKey=%s, addr=%s\n",
+                 pubKeyMasternode.GetID().ToString(), addr.ToString());
+        nDos = 20;
+        return false;
+    }
+
+    /* We are a masternode with the same vin (i.e. already activated) and this
+     * mnb is ours (matches our Masternode privkey) so nothing to do here
+     * for us. */
     if (fMasterNode && pubKeyMasternode == activeMasternode.pubKeyMasternode) {
         if (mnodeman.Has(pubKeyMasternode)) {
             LogPrintf("CMasternodeBroadcast::CheckMasternode -- Masternode already added\n");
@@ -538,7 +547,8 @@ bool CMasternodeBroadcast::CheckMasternode(int& nDos)
         TRY_LOCK(cs_main, lockMain);
         if(!lockMain) {
             // not mnb fault, let it to be checked again later
-            LogPrint("masternode", "CMasternodeBroadcast::CheckMasternode -- Failed to acquire lock, addr=%s", addr.ToString());
+            LogPrint("masternode", "CMasternodeBroadcast::CheckMasternode -- "
+                     "Failed to acquire lock, addr=%s\n", addr.ToString());
             mnodeman.mapSeenMasternodeBroadcast.erase(GetHash());
             return false;
         }
