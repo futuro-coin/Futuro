@@ -16,8 +16,8 @@ class CMasternodePayments;
 class CMasternodePaymentVote;
 class CMasternodeBlockPayees;
 
-static const int MNPAYMENTS_SIGNATURES_REQUIRED         = 6;
-static const int MNPAYMENTS_SIGNATURES_TOTAL            = 10;
+static const int MNPAYMENTS_SIGNATURES_REQUIRED         = 1;
+static const int MNPAYMENTS_SIGNATURES_TOTAL            = 2;
 
 //! minimum peer version that can receive and send masternode payment messages,
 //  vote for masternode and be elected as a payment winner
@@ -109,6 +109,7 @@ public:
 class CMasternodePaymentVote
 {
 public:
+    CTxIn vinMasternode;
     CPubKey pubKeyMasternode;
 
     int nBlockHeight;
@@ -116,9 +117,18 @@ public:
     std::vector<unsigned char> vchSig;
 
     CMasternodePaymentVote() :
+        vinMasternode(),
         pubKeyMasternode(),
         nBlockHeight(0),
         payee(),
+        vchSig()
+        {}
+
+    // SPORK_14_MNODES_RELEASE_ENABLED active
+    CMasternodePaymentVote(COutPoint outpointMasternode, int nBlockHeight, CScript payee) :
+        vinMasternode(outpointMasternode),
+        nBlockHeight(nBlockHeight),
+        payee(payee),
         vchSig()
         {}
 
@@ -133,7 +143,13 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(pubKeyMasternode);
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            READWRITE(vinMasternode);
+        } else {
+            READWRITE(pubKeyMasternode);
+        }
+
         READWRITE(nBlockHeight);
         READWRITE(*(CScriptBase*)(&payee));
         READWRITE(vchSig);
@@ -143,7 +159,14 @@ public:
         CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
         ss << *(CScriptBase*)(&payee);
         ss << nBlockHeight;
-        ss << pubKeyMasternode;
+
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            ss << vinMasternode.prevout;
+        } else {
+            ss << pubKeyMasternode;
+        }
+
         return ss.GetHash();
     }
 
@@ -178,6 +201,7 @@ private:
 public:
     std::map<uint256, CMasternodePaymentVote> mapMasternodePaymentVotes;
     std::map<int, CMasternodeBlockPayees> mapMasternodeBlocks;
+    std::map<COutPoint, int> mapMasternodesLastVoteMnRel;
     std::map<CPubKey, int> mapMasternodesLastVote;
     std::map<CPubKey, int> mapMasternodesDidNotVote;
 
@@ -206,6 +230,7 @@ public:
     bool IsTransactionValid(const CTransaction& txNew, int nBlockHeight);
     bool IsScheduled(CMasternode& mn, int nNotBlockHeight);
 
+    bool CanVote(COutPoint outMasternode, int nBlockHeight);
     bool CanVote(CPubKey pubKey, int nBlockHeight);
 
     int GetMinMasternodePaymentsProto();

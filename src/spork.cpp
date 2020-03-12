@@ -100,6 +100,15 @@ void CSporkManager::ExecuteSpork(int nSporkID, int nValue)
     }
     if (nSporkID == SPORK_4_INSTANTSEND_TRANSACTION_FEE) {
         uiInterface.NotifyInstantSendFeeChanged();
+    } else if (nSporkID == SPORK_14_MNODES_RELEASE_ENABLED) {
+        // SPORK_14_MNODES_RELEASE_ENABLED active
+        fMasterNodesReleased = true;
+
+        LogPrintf("CSporkManager::ExecuteSpork -- SPORK_14_MNODES_RELEASE_ENABLED activated: %d\n", nValue);
+
+        if (fMasterNode && !fMasterNodeNewConfig) {
+            LogPrintf("CSporkManager::ExecuteSpork -- obsolete masternode configuration format for spork SPORK_14_MNODES_RELEASE_ENABLED.\n");
+        }
     }
 }
 
@@ -123,7 +132,7 @@ bool CSporkManager::IsSporkActive(int nSporkID)
 {
     int64_t r = -1;
 
-    if(mapSporksActive.count(nSporkID)){
+    if (mapSporksActive.count(nSporkID)) {
         r = mapSporksActive[nSporkID].nValue;
     } else {
         switch (nSporkID) {
@@ -134,6 +143,8 @@ bool CSporkManager::IsSporkActive(int nSporkID)
             case SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT:    r = SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT_DEFAULT; break;
             case SPORK_10_MASTERNODE_PAY_UPDATED_NODES:     r = SPORK_10_MASTERNODE_PAY_UPDATED_NODES_DEFAULT; break;
             case SPORK_12_RECONSIDER_BLOCKS:                r = SPORK_12_RECONSIDER_BLOCKS_DEFAULT; break;
+            case SPORK_13_NEW_SUPPLY_RATE_ENABLED:          r = SPORK_13_NEW_SUPPLY_RATE_ENABLED_DEFAULT; break;
+            case SPORK_14_MNODES_RELEASE_ENABLED:           r = SPORK_14_MNODES_RELEASE_ENABLED_DEFAULT; break;
             default:
                 LogPrint("spork", "CSporkManager::IsSporkActive -- Unknown Spork ID %d\n", nSporkID);
                 r = 4070908800ULL; // 2099-1-1 i.e. off by default
@@ -158,6 +169,8 @@ int64_t CSporkManager::GetSporkValue(int nSporkID)
         case SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT:    return SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT_DEFAULT;
         case SPORK_10_MASTERNODE_PAY_UPDATED_NODES:     return SPORK_10_MASTERNODE_PAY_UPDATED_NODES_DEFAULT;
         case SPORK_12_RECONSIDER_BLOCKS:                return SPORK_12_RECONSIDER_BLOCKS_DEFAULT;
+        case SPORK_13_NEW_SUPPLY_RATE_ENABLED:          return SPORK_13_NEW_SUPPLY_RATE_ENABLED_DEFAULT;
+        case SPORK_14_MNODES_RELEASE_ENABLED:           return SPORK_14_MNODES_RELEASE_ENABLED_DEFAULT;
         default:
             LogPrint("spork", "CSporkManager::GetSporkValue -- Unknown Spork ID %d\n", nSporkID);
             return -1;
@@ -174,6 +187,8 @@ int CSporkManager::GetSporkIDByName(std::string strName)
     if (strName == "SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT")    return SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT;
     if (strName == "SPORK_10_MASTERNODE_PAY_UPDATED_NODES")     return SPORK_10_MASTERNODE_PAY_UPDATED_NODES;
     if (strName == "SPORK_12_RECONSIDER_BLOCKS")                return SPORK_12_RECONSIDER_BLOCKS;
+    if (strName == "SPORK_13_NEW_SUPPLY_RATE_ENABLED")          return SPORK_13_NEW_SUPPLY_RATE_ENABLED;
+    if (strName == "SPORK_14_MNODES_RELEASE_ENABLED")           return SPORK_14_MNODES_RELEASE_ENABLED;
 
     LogPrint("spork", "CSporkManager::GetSporkIDByName -- Unknown Spork name '%s'\n", strName);
     return -1;
@@ -189,6 +204,8 @@ std::string CSporkManager::GetSporkNameByID(int nSporkID)
         case SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT:    return "SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT";
         case SPORK_10_MASTERNODE_PAY_UPDATED_NODES:     return "SPORK_10_MASTERNODE_PAY_UPDATED_NODES";
         case SPORK_12_RECONSIDER_BLOCKS:                return "SPORK_12_RECONSIDER_BLOCKS";
+        case SPORK_13_NEW_SUPPLY_RATE_ENABLED:          return "SPORK_13_NEW_SUPPLY_RATE_ENABLED";
+        case SPORK_14_MNODES_RELEASE_ENABLED:           return "SPORK_14_MNODES_RELEASE_ENABLED";
         default:
             LogPrint("spork", "CSporkManager::GetSporkNameByID -- Unknown Spork ID %d\n", nSporkID);
             return "Unknown";

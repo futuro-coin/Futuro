@@ -41,9 +41,10 @@
 #define DBG( x ) 
 #endif
 
-//FuturoCoin only features
-
+// FuturoCoin only features
 extern bool fMasterNode;
+extern bool fMasterNodesReleased;
+extern bool fMasterNodeNewConfig;
 extern int nWalletBackups;
 
 static const bool DEFAULT_LOGTIMEMICROS  = false;

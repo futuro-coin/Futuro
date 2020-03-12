@@ -70,10 +70,9 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
         const arith_uint256 bnPowLimit = UintToArith256(params.powLimit);
         return bnPowLimit.GetCompact();
     }
-
+    
     return DarkGravityWave(pindexLast, params);
 }
-
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
 {

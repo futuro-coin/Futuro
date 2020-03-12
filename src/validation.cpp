@@ -497,9 +497,8 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state)
     set<COutPoint> vInOutPoints;
     BOOST_FOREACH(const CTxIn& txin, tx.vin)
     {
-        if (vInOutPoints.count(txin.prevout))
+        if (!vInOutPoints.insert(txin.prevout).second)
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-inputs-duplicate");
-        vInOutPoints.insert(txin.prevout);
     }
 
     if (tx.IsCoinBase())
@@ -1254,6 +1253,19 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
     // LogPrintf("height %u, reward %d\n", nPrevHeight, nSubsidyBase);
     CAmount nSubsidy = nSubsidyBase * COIN;
 
+    int64_t initBlockNumber4Halving = sporkManager.GetSporkValue(SPORK_13_NEW_SUPPLY_RATE_ENABLED);
+
+    if (initBlockNumber4Halving > 0 && nPrevHeight >= initBlockNumber4Halving) {
+        // Subsidy halving active
+        if (nPrevHeight <= initBlockNumber4Halving + consensusParams.nSubsidyHalvingInterval) {
+            nSubsidy >>= 1;
+        } else if (nPrevHeight <= initBlockNumber4Halving + 2 * consensusParams.nSubsidyHalvingInterval) {
+            nSubsidy >>= 2;
+        } else {
+            nSubsidy >>= 3;
+        }
+    }
+
     return nSubsidy;
 }
 
@@ -1867,22 +1879,32 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
         Consensus::DeploymentPos pos = Consensus::DeploymentPos(i);
         ThresholdState state = VersionBitsState(pindexPrev, params, pos, versionbitscache);
         const struct BIP9DeploymentInfo& vbinfo = VersionBitsDeploymentInfo[pos];
+
         if (vbinfo.check_mn_protocol && state == THRESHOLD_STARTED && !fAssumeMasternodeIsUpgraded) {
             CScript payee;
             masternode_info_t mnInfo;
+
             if (!mnpayments.GetBlockPayee(pindexPrev->nHeight + 1, payee)) {
                 // no votes for this block
                 continue;
             }
-            if (!mnodeman.GetMasternodeInfo(payee, mnInfo)) {
+
+            if (fMasterNodesReleased ? !mnodeman.GetMasternodeInfoMnRel(payee, mnInfo) : !mnodeman.GetMasternodeInfo(payee, mnInfo)) {
                 // unknown masternode
                 continue;
             }
+
             if (mnInfo.nProtocolVersion < DIP0001_PROTOCOL_VERSION) {
                 // masternode is not upgraded yet
                 continue;
             }
+
+            if (fMasterNodesReleased && mnInfo.nProtocolVersion < FIP0001_PROTOCOL_VERSION) {
+                // masternode is not upgraded yet
+                continue;
+            }
         }
+
         if (state == THRESHOLD_LOCKED_IN || state == THRESHOLD_STARTED) {
             nVersion |= VersionBitsMask(params, (Consensus::DeploymentPos)i);
         }
@@ -2405,7 +2427,8 @@ void PruneAndFlush() {
 }
 
 /** Update chainActive and related internal data structures. */
-void static UpdateTip(CBlockIndex *pindexNew) {
+void static UpdateTip(CBlockIndex *pindexNew)
+{
     const CChainParams& chainParams = Params();
     chainActive.SetTip(pindexNew);
 
@@ -2421,16 +2444,19 @@ void static UpdateTip(CBlockIndex *pindexNew) {
 
     // Check the version of the last 100 blocks to see if we need to upgrade:
     static bool fWarned = false;
-    if (!IsInitialBlockDownload())
-    {
+
+    if (!IsInitialBlockDownload()) {
         int nUpgraded = 0;
         const CBlockIndex* pindex = chainActive.Tip();
+
         for (int bit = 0; bit < VERSIONBITS_NUM_BITS; bit++) {
             WarningBitsConditionChecker checker(bit);
             ThresholdState state = checker.GetStateFor(pindex, chainParams.GetConsensus(), warningcache[bit]);
+
             if (state == THRESHOLD_ACTIVE || state == THRESHOLD_LOCKED_IN) {
                 if (state == THRESHOLD_ACTIVE) {
                     strMiscWarning = strprintf(_("Warning: unknown new rules activated (versionbit %i)"), bit);
+
                     if (!fWarned) {
                         CAlert::Notify(strMiscWarning, true);
                         fWarned = true;
@@ -2440,19 +2466,19 @@ void static UpdateTip(CBlockIndex *pindexNew) {
                 }
             }
         }
-        for (int i = 0; i < 100 && pindex != NULL; i++)
-        {
+
+        for (int i = 0; i < 100 && pindex != NULL; i++) {
             int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus(), true);
-            if (pindex->nVersion > VERSIONBITS_LAST_OLD_BLOCK_VERSION && (pindex->nVersion & ~nExpectedVersion) != 0)
-                ++nUpgraded;
+            if (pindex->nVersion > VERSIONBITS_LAST_OLD_BLOCK_VERSION && (pindex->nVersion & ~nExpectedVersion) != 0) ++nUpgraded;
             pindex = pindex->pprev;
         }
-        if (nUpgraded > 0)
-            LogPrintf("%s: %d of last 100 blocks have unexpected version\n", __func__, nUpgraded);
-        if (nUpgraded > 100/2)
-        {
+
+        if (nUpgraded > 0) LogPrintf("%s: %d of last 100 blocks have unexpected version\n", __func__, nUpgraded);
+
+        if (nUpgraded > 100 / 2){
             // strMiscWarning is read by GetWarnings(), called by Qt and the JSON-RPC code to warn the user:
             strMiscWarning = _("Warning: Unknown block versions being mined! It's possible unknown rules are in effect");
+
             if (!fWarned) {
                 CAlert::Notify(strMiscWarning, true);
                 fWarned = true;

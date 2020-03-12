@@ -104,8 +104,12 @@ namespace boost {
 
 using namespace std;
 
-//FuturoCoin only features
+// FuturoCoin only features
 bool fMasterNode = false;
+// SPORK_14_MNODES_RELEASE_ENABLED
+bool fMasterNodesReleased = false;
+bool fMasterNodeNewConfig = false;
+
 /**
     nWalletBackups:
         1..10   - number of automatic backups to keep

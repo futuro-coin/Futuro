@@ -21,7 +21,18 @@ public:
         std::string ip;
         std::string privKey;
         std::string payee;
+        std::string txHash;
+        std::string outputIndex;
     public:
+
+        // SPORK_14_MNODES_RELEASE_ENABLED active
+        CMasternodeEntry(std::string alias, std::string ip, std::string privKey, std::string txHash, std::string outputIndex) {
+            this->alias = alias;
+            this->ip = ip;
+            this->privKey = privKey;
+            this->txHash = txHash;
+            this->outputIndex = outputIndex;
+        }
 
         CMasternodeEntry(std::string alias, std::string ip,
                          std::string privKey, std::string payee) {
@@ -37,6 +48,14 @@ public:
 
         void setAlias(const std::string& alias) {
             this->alias = alias;
+        }
+
+        const std::string& getOutputIndex() const {
+            return outputIndex;
+        }
+
+        void setOutputIndex(const std::string& outputIndex) {
+            this->outputIndex = outputIndex;
         }
 
         const std::string& getPrivKey() const {
@@ -55,6 +74,14 @@ public:
             this->payee = payee;
         }
 
+        const std::string& getTxHash() const {
+            return txHash;
+        }
+
+        void setTxHash(const std::string& txHash) {
+            this->txHash = txHash;
+        }
+
         const std::string& getIp() const {
             return ip;
         }
@@ -70,8 +97,8 @@ public:
 
     void clear();
     bool read(std::string& strErr);
-    void add(std::string alias, std::string ip,
-             std::string privKey, std::string payee);
+    void add(std::string alias, std::string ip, std::string privKey, std::string txHash, std::string outputIndex);
+    void add(std::string alias, std::string ip, std::string privKey, std::string payee);
 
     std::vector<CMasternodeEntry>& getEntries() {
         return entries;

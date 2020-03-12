@@ -100,8 +100,14 @@ void MasternodeList::StartAlias(std::string strAlias)
             std::string strError;
             CMasternodeBroadcast mnb;
 
-            bool fSuccess = CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(),
-                                                         mne.getPayee(), strError, mnb);
+            bool fSuccess;
+
+            if (fMasterNodesReleased) {
+                // SPORK_14_MNODES_RELEASE_ENABLED active
+                fSuccess = CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(), mne.getTxHash(), mne.getOutputIndex(), strError, mnb);
+            } else {
+                fSuccess = CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(), mne.getPayee(), strError, mnb);
+            }
 
             if(fSuccess) {
                 strStatusHtml += "<br>Successfully started masternode.";
@@ -133,15 +139,30 @@ void MasternodeList::StartAll(std::string strCommand)
         std::string strError;
         CMasternodeBroadcast mnb;
 
-        CPubKey pubKeyMasternodeNew;
-        CKey keyMasternodeNew;
+        bool fSuccess;
 
-        /* ToDO: somehow react!!! */
-        if (!CMessageSigner::GetKeysFromSecret(mne.getPrivKey(), keyMasternodeNew, pubKeyMasternodeNew))
-            continue;
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            int32_t nOutputIndex = 0;
+            if(!ParseInt32(mne.getOutputIndex(), &nOutputIndex)) {
+                continue;
+            }
 
-        bool fSuccess = CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(),
-                                                     mne.getPayee(), strError, mnb);
+            COutPoint outpoint = COutPoint(uint256S(mne.getTxHash()), nOutputIndex);
+
+            if(strCommand == "start-missing" && mnodeman.Has(outpoint)) continue;
+
+            fSuccess = CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(), mne.getTxHash(), mne.getOutputIndex(), strError, mnb);
+        } else {
+            CPubKey pubKeyMasternodeNew;
+            CKey keyMasternodeNew;
+
+            /* ToDO: somehow react!!! */
+            if (!CMessageSigner::GetKeysFromSecret(mne.getPrivKey(), keyMasternodeNew, pubKeyMasternodeNew))
+                continue;
+
+            fSuccess = CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(), mne.getPayee(), strError, mnb);
+        }
 
         if(fSuccess) {
             nCountSuccessful++;
@@ -166,6 +187,46 @@ void MasternodeList::StartAll(std::string strCommand)
     msg.exec();
 
     updateMyNodeList(true);
+}
+
+// SPORK_14_MNODES_RELEASE_ENABLED active
+void MasternodeList::updateMyMasternodeInfo(QString strAlias, QString strAddr, const COutPoint& outpoint)
+{
+    bool fOldRowFound = false;
+    int nNewRow = 0;
+
+    for(int i = 0; i < ui->tableWidgetMyMasternodes->rowCount(); i++) {
+        if(ui->tableWidgetMyMasternodes->item(i, 0)->text() == strAlias) {
+            fOldRowFound = true;
+            nNewRow = i;
+            break;
+        }
+    }
+
+    if(nNewRow == 0 && !fOldRowFound) {
+        nNewRow = ui->tableWidgetMyMasternodes->rowCount();
+        ui->tableWidgetMyMasternodes->insertRow(nNewRow);
+    }
+
+    masternode_info_t infoMn;
+    bool fFound = mnodeman.GetMasternodeInfo(outpoint, infoMn);
+
+    QTableWidgetItem *aliasItem = new QTableWidgetItem(strAlias);
+    QTableWidgetItem *addrItem = new QTableWidgetItem(fFound ? QString::fromStdString(infoMn.addr.ToString()) : strAddr);
+    QTableWidgetItem *protocolItem = new QTableWidgetItem(QString::number(fFound ? infoMn.nProtocolVersion : -1));
+    QTableWidgetItem *statusItem = new QTableWidgetItem(QString::fromStdString(fFound ? CMasternode::StateToString(infoMn.nActiveState) : "MISSING"));
+    QTableWidgetItem *activeSecondsItem = new QTableWidgetItem(QString::fromStdString(DurationToDHMS(fFound ? (infoMn.nTimeLastPing - infoMn.sigTime) : 0)));
+    QTableWidgetItem *lastSeenItem = new QTableWidgetItem(QString::fromStdString(DateTimeStrFormat("%Y-%m-%d %H:%M",
+                                                                                                   fFound ? infoMn.nTimeLastPing + QDateTime::currentDateTime().offsetFromUtc() : 0)));
+    QTableWidgetItem *pubkeyItem = new QTableWidgetItem(QString::fromStdString(fFound ? CBitcoinAddress(infoMn.pubKeyCollateralAddress.GetID()).ToString() : ""));
+
+    ui->tableWidgetMyMasternodes->setItem(nNewRow, 0, aliasItem);
+    ui->tableWidgetMyMasternodes->setItem(nNewRow, 1, addrItem);
+    ui->tableWidgetMyMasternodes->setItem(nNewRow, 2, protocolItem);
+    ui->tableWidgetMyMasternodes->setItem(nNewRow, 3, statusItem);
+    ui->tableWidgetMyMasternodes->setItem(nNewRow, 4, activeSecondsItem);
+    ui->tableWidgetMyMasternodes->setItem(nNewRow, 5, lastSeenItem);
+    ui->tableWidgetMyMasternodes->setItem(nNewRow, 6, pubkeyItem);
 }
 
 void MasternodeList::updateMyMasternodeInfo(QString strAlias, QString strAddr, const CPubKey& pubKey)
@@ -229,14 +290,24 @@ void MasternodeList::updateMyNodeList(bool fForce)
 
     ui->tableWidgetMasternodes->setSortingEnabled(false);
     BOOST_FOREACH(CMasternodeConfig::CMasternodeEntry mne, masternodeConfig.getEntries()) {
-        CPubKey pubKeyMasternodeNew;
-        CKey keyMasternodeNew;
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            int32_t nOutputIndex = 0;
+            if(!ParseInt32(mne.getOutputIndex(), &nOutputIndex)) {
+                continue;
+            }
 
-        /* ToDO: somehow react!!! */
-        if (!CMessageSigner::GetKeysFromSecret(mne.getPrivKey(), keyMasternodeNew, pubKeyMasternodeNew))
-            continue;
+            updateMyMasternodeInfo(QString::fromStdString(mne.getAlias()), QString::fromStdString(mne.getIp()), COutPoint(uint256S(mne.getTxHash()), nOutputIndex));
+        } else {
+            CPubKey pubKeyMasternodeNew;
+            CKey keyMasternodeNew;
 
-        updateMyMasternodeInfo(QString::fromStdString(mne.getAlias()), QString::fromStdString(mne.getIp()), pubKeyMasternodeNew);
+            /* ToDO: somehow react!!! */
+            if (!CMessageSigner::GetKeysFromSecret(mne.getPrivKey(), keyMasternodeNew, pubKeyMasternodeNew))
+                continue;
+
+            updateMyMasternodeInfo(QString::fromStdString(mne.getAlias()), QString::fromStdString(mne.getIp()), pubKeyMasternodeNew);
+        }
     }
     ui->tableWidgetMasternodes->setSortingEnabled(true);
 
@@ -270,40 +341,79 @@ void MasternodeList::updateNodeList()
     ui->tableWidgetMasternodes->setSortingEnabled(false);
     ui->tableWidgetMasternodes->clearContents();
     ui->tableWidgetMasternodes->setRowCount(0);
-    std::map<CPubKey, CMasternode> mapMasternodes = mnodeman.GetFullMasternodeMap();
 
-    for(auto& mnpair : mapMasternodes)
-    {
-        CMasternode mn = mnpair.second;
-        // populate list
-        // Address, Protocol, Status, Active Seconds, Last Seen, Pub Key
-        QTableWidgetItem *addressItem = new QTableWidgetItem(QString::fromStdString(mn.addr.ToString()));
-        QTableWidgetItem *protocolItem = new QTableWidgetItem(QString::number(mn.nProtocolVersion));
-        QTableWidgetItem *statusItem = new QTableWidgetItem(QString::fromStdString(mn.GetStatus()));
-        QTableWidgetItem *activeSecondsItem = new QTableWidgetItem(QString::fromStdString(DurationToDHMS(mn.lastPing.sigTime - mn.sigTime)));
-        QTableWidgetItem *lastSeenItem = new QTableWidgetItem(QString::fromStdString(DateTimeStrFormat("%Y-%m-%d %H:%M", mn.lastPing.sigTime + QDateTime::currentDateTime().offsetFromUtc())));
-        QTableWidgetItem *pubkeyItem =
-            new QTableWidgetItem(
-                QString::fromStdString(mn.payee.ToString()));
+    if (fMasterNodesReleased) {
+        // SPORK_14_MNODES_RELEASE_ENABLED active
+        std::map<COutPoint, CMasternode> mapMasternodes = mnodeman.GetFullMasternodeMapMnRel();
 
-        if (strCurrentFilter != "")
+        for(auto& mnpair : mapMasternodes)
         {
-            strToFilter =   addressItem->text() + " " +
-                            protocolItem->text() + " " +
-                            statusItem->text() + " " +
-                            activeSecondsItem->text() + " " +
-                            lastSeenItem->text() + " " +
-                            pubkeyItem->text();
-            if (!strToFilter.contains(strCurrentFilter)) continue;
+            CMasternode mn = mnpair.second;
+            // populate list
+            // Address, Protocol, Status, Active Seconds, Last Seen, Pub Key
+            QTableWidgetItem *addressItem = new QTableWidgetItem(QString::fromStdString(mn.addr.ToString()));
+            QTableWidgetItem *protocolItem = new QTableWidgetItem(QString::number(mn.nProtocolVersion));
+            QTableWidgetItem *statusItem = new QTableWidgetItem(QString::fromStdString(mn.GetStatus()));
+            QTableWidgetItem *activeSecondsItem = new QTableWidgetItem(QString::fromStdString(DurationToDHMS(mn.lastPing.sigTime - mn.sigTime)));
+            QTableWidgetItem *lastSeenItem = new QTableWidgetItem(QString::fromStdString(DateTimeStrFormat("%Y-%m-%d %H:%M", mn.lastPing.sigTime + QDateTime::currentDateTime().offsetFromUtc())));
+            QTableWidgetItem *pubkeyItem = new QTableWidgetItem(QString::fromStdString(CBitcoinAddress(mn.pubKeyCollateralAddress.GetID()).ToString()));
+
+            if (strCurrentFilter != "")
+            {
+                strToFilter =   addressItem->text() + " " +
+                                protocolItem->text() + " " +
+                                statusItem->text() + " " +
+                                activeSecondsItem->text() + " " +
+                                lastSeenItem->text() + " " +
+                                pubkeyItem->text();
+                if (!strToFilter.contains(strCurrentFilter)) continue;
+            }
+
+            ui->tableWidgetMasternodes->insertRow(0);
+            ui->tableWidgetMasternodes->setItem(0, 0, addressItem);
+            ui->tableWidgetMasternodes->setItem(0, 1, protocolItem);
+            ui->tableWidgetMasternodes->setItem(0, 2, statusItem);
+            ui->tableWidgetMasternodes->setItem(0, 3, activeSecondsItem);
+            ui->tableWidgetMasternodes->setItem(0, 4, lastSeenItem);
+            ui->tableWidgetMasternodes->setItem(0, 5, pubkeyItem);
+        }
+    } else {
+        std::map<CPubKey, CMasternode> mapMasternodes = mnodeman.GetFullMasternodeMap();
+
+        for(auto& mnpair : mapMasternodes)
+        {
+            CMasternode mn = mnpair.second;
+            // populate list
+            // Address, Protocol, Status, Active Seconds, Last Seen, Pub Key
+            QTableWidgetItem *addressItem = new QTableWidgetItem(QString::fromStdString(mn.addr.ToString()));
+            QTableWidgetItem *protocolItem = new QTableWidgetItem(QString::number(mn.nProtocolVersion));
+            QTableWidgetItem *statusItem = new QTableWidgetItem(QString::fromStdString(mn.GetStatus()));
+            QTableWidgetItem *activeSecondsItem = new QTableWidgetItem(QString::fromStdString(DurationToDHMS(mn.lastPing.sigTime - mn.sigTime)));
+            QTableWidgetItem *lastSeenItem = new QTableWidgetItem(QString::fromStdString(DateTimeStrFormat("%Y-%m-%d %H:%M", mn.lastPing.sigTime + QDateTime::currentDateTime().offsetFromUtc())));
+            QTableWidgetItem *pubkeyItem =
+                new QTableWidgetItem(
+                    QString::fromStdString(mn.payee.ToString()));
+
+            if (strCurrentFilter != "")
+            {
+                strToFilter =   addressItem->text() + " " +
+                                protocolItem->text() + " " +
+                                statusItem->text() + " " +
+                                activeSecondsItem->text() + " " +
+                                lastSeenItem->text() + " " +
+                                pubkeyItem->text();
+                if (!strToFilter.contains(strCurrentFilter)) continue;
+            }
+
+            ui->tableWidgetMasternodes->insertRow(0);
+            ui->tableWidgetMasternodes->setItem(0, 0, addressItem);
+            ui->tableWidgetMasternodes->setItem(0, 1, protocolItem);
+            ui->tableWidgetMasternodes->setItem(0, 2, statusItem);
+            ui->tableWidgetMasternodes->setItem(0, 3, activeSecondsItem);
+            ui->tableWidgetMasternodes->setItem(0, 4, lastSeenItem);
+            ui->tableWidgetMasternodes->setItem(0, 5, pubkeyItem);
         }
 
-        ui->tableWidgetMasternodes->insertRow(0);
-        ui->tableWidgetMasternodes->setItem(0, 0, addressItem);
-        ui->tableWidgetMasternodes->setItem(0, 1, protocolItem);
-        ui->tableWidgetMasternodes->setItem(0, 2, statusItem);
-        ui->tableWidgetMasternodes->setItem(0, 3, activeSecondsItem);
-        ui->tableWidgetMasternodes->setItem(0, 4, lastSeenItem);
-        ui->tableWidgetMasternodes->setItem(0, 5, pubkeyItem);
     }
 
     ui->countLabel->setText(QString::number(ui->tableWidgetMasternodes->rowCount()));
