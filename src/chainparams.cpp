@@ -104,10 +104,10 @@ public:
 
         // Deployment of FIP0001
         consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].bit = 2;
-        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nStartTime = 1586908800; // Apr 15th, 2020
-        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nTimeout = 1618444800; // Apr 15th, 2021
-        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nWindowSize = 4032;
-        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nThreshold = 3226; // 80% of 4032
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nStartTime = 1584662400; // Mar 20th, 2020
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nTimeout = 1616198400; // Mar 20th, 2021
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nWindowSize = 100;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nThreshold = 50; // 50% of 100
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -222,10 +222,10 @@ public:
 
         // Deployment of FIP0001
         consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].bit = 2;
-        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nStartTime = 1583971200; // Mar 12th, 2020
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nStartTime = 1584316800; // Mar 12th, 2020
         consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nTimeout = 1615507200; // Mar 12th, 2021
-        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nWindowSize = 100;
-        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nThreshold = 50; // 50% of 100
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nWindowSize = 50;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nThreshold = 25; // 50% of 50
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
