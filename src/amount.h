@@ -16,6 +16,8 @@ typedef int64_t CAmount;
 static const CAmount COIN = 100000000;
 static const CAmount CENT = 1000000;
 
+static const int MNODE_REQ_BALANCE = 10000; // Minimal balance required to run master node (10000 FTO)
+
 extern const std::string CURRENCY_UNIT;
 
 /** No amount larger than this (in satoshi) is valid.

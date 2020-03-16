@@ -48,6 +48,7 @@ std::string CMasternodeSync::GetAssetName()
         case(MASTERNODE_SYNC_WAITING):      return "MASTERNODE_SYNC_WAITING";
         case(MASTERNODE_SYNC_LIST):         return "MASTERNODE_SYNC_LIST";
         case(MASTERNODE_SYNC_MNW):          return "MASTERNODE_SYNC_MNW";
+        case(MASTERNODE_SYNC_GOVERNANCE):   return "MASTERNODE_SYNC_GOVERNANCE";
         case(MASTERNODE_SYNC_FAILED):       return "MASTERNODE_SYNC_FAILED";
         case MASTERNODE_SYNC_FINISHED:      return "MASTERNODE_SYNC_FINISHED";
         default:                            return "UNKNOWN";
@@ -107,6 +108,7 @@ std::string CMasternodeSync::GetSyncStatus()
         case MASTERNODE_SYNC_WAITING:       return _("Synchronization pending...");
         case MASTERNODE_SYNC_LIST:          return _("Synchronizing masternodes...");
         case MASTERNODE_SYNC_MNW:           return _("Synchronizing masternode payments...");
+        case MASTERNODE_SYNC_GOVERNANCE:    return _("Synchronizing governance objects...");
         case MASTERNODE_SYNC_FAILED:        return _("Synchronization failed");
         case MASTERNODE_SYNC_FINISHED:      return _("Synchronization finished");
         default:                            return "";
@@ -139,6 +141,12 @@ void CMasternodeSync::ClearFulfilledRequests(CConnman& connman)
         netfulfilledman.RemoveFulfilledRequest(pnode->addr, "mnlist-sync");
         netfulfilledman.RemoveFulfilledRequest(pnode->addr, "masternode-list-sync");
         netfulfilledman.RemoveFulfilledRequest(pnode->addr, "masternode-payment-sync");
+
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            netfulfilledman.RemoveFulfilledRequest(pnode->addr, "governance-sync");
+        }
+
         netfulfilledman.RemoveFulfilledRequest(pnode->addr, "full-sync");
     });
 }
@@ -404,9 +412,11 @@ void ThreadCheckMasternodeSync(CConnman& connman)
 {
     /* Make sure the thread is started only once. */
     static bool fOneThread;
+
     if (fOneThread) {
         return;
     }
+
     fOneThread = true;
 
     // Make this thread recognizable as the Masternode-Sync thread
@@ -417,14 +427,22 @@ void ThreadCheckMasternodeSync(CConnman& connman)
     while (true) {
         MilliSleep(1000);
 
+        // Update SPORK_14_MNODES_RELEASE_ENABLED flag
+        fMasterNodesReleased = sporkManager.IsSporkActive(SPORK_14_MNODES_RELEASE_ENABLED);
+
         // try to sync from all available nodes, one step at a time
         masternodeSync.ProcessTick(connman);
 
-        if(masternodeSync.IsBlockchainSynced() && !ShutdownRequested()) {
+        if (masternodeSync.IsBlockchainSynced() && !ShutdownRequested()) {
             nTick++;
 
             // make sure to check all masternodes first
-            mnodeman.Check();
+            if (fMasterNodesReleased) {
+                // SPORK_14_MNODES_RELEASE_ENABLED active
+                mnodeman.CheckMnRel();
+            } else {
+                mnodeman.Check();
+            }
 
             // check if we should activate or ping every few minutes,
             // slightly postpone first run to give net thread a chance to connect to some peers
@@ -434,7 +452,14 @@ void ThreadCheckMasternodeSync(CConnman& connman)
 
             if (nTick % 60 == 0) {
                 mnodeman.ProcessMasternodeConnections(connman);
-                mnodeman.CheckAndRemove(connman);
+
+                if (fMasterNodesReleased) {
+                    // SPORK_14_MNODES_RELEASE_ENABLED active
+                    mnodeman.CheckAndRemoveMnRel(connman);
+                } else {
+                    mnodeman.CheckAndRemove(connman);
+                }
+
                 mnpayments.CheckAndRemove();
                 instantsend.CheckAndRemove();
             }

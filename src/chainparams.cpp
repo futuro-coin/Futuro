@@ -47,7 +47,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *   CTransaction(hash=3a7e038922, ver=1, vin.size=1, vout.size=1, nLockTime=0)
  *     CTxIn(COutPoint(0000000000000000000000000000000000000000000000000000000000000000, 4294967295), coinbase 04ffff001d01044c584e5a20486572616c642033312f4a616e2f3230313820436f6f6b696e672074686520426f6f6b7320706f64636173743a2057687920626974636f696e20636f756c64206265206d61696e73747265616d2062792032303139)
  *     CTxOut(nValue=50.00000000, scriptPubKey=76a914793346dba7d4bc56cfe2c674)
- * 
+ *
  * */
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
@@ -72,7 +72,9 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         strNetworkID = "main";
+        consensus.nSubsidyHalvingInterval = 2 * 525600; // Halving per 2 years (one block per minute - number of blocks per year is 360 * 24 * 60 = 525600)
         consensus.nInstantSendKeepLock = 24;
+        consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
@@ -100,6 +102,13 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nWindowSize = 4032;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nThreshold = 3226;      // 80% of 4032
 
+        // Deployment of FIP0001
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].bit = 2;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nStartTime = 1584662400; // Mar 20th, 2020
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nTimeout = 1616198400; // Mar 20th, 2021
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nWindowSize = 100;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nThreshold = 50; // 50% of 100
+
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
@@ -116,9 +125,9 @@ public:
          * by 0x80 to reach ASCII extended table values.
          */
         pchMessageStart[0] = 0xCF; // 'O' + 0x80
-        pchMessageStart[1] = 0xD2;   // 'R' + 0x80
-        pchMessageStart[2] = 0xD4;   // 'T' + 0x80
-        pchMessageStart[3] = 0xC6;   // 'F' + 0x80
+        pchMessageStart[1] = 0xD2; // 'R' + 0x80
+        pchMessageStart[2] = 0xD4; // 'T' + 0x80
+        pchMessageStart[3] = 0xC6; // 'F' + 0x80
         vAlertPubKey = ParseHex("04ce461ade8b748e623c0018d212a7bf618ea7efd0f4341b33257a998355802924add8931ac6e5e1e113f87308f0e279e5a22968a3588fe949cd07b5e5c7c9c7be");
         nDefaultPort = 9009;
         nMaxTipAge = 6 * 60 * 60; // ~144 blocks behind -> 2 x fork detection time, was 24 * 60 * 60 in bitcoin
@@ -128,6 +137,7 @@ public:
         genesis = CreateGenesisBlock(1517356800UL, 227856UL, 0x1e0ffff0, 1, 50 * COIN);
 
         consensus.hashGenesisBlock = genesis.GetHash();
+
         assert(consensus.hashGenesisBlock == uint256S("0x00000bb3fa6e7040e32c0f8e8218e928c37e177139b62ae1daba803e0543c175"));
         assert(genesis.hashMerkleRoot == uint256S("0x3a7e038922f88887c9337b643cbf91c11e12707dd2f75fe3aa7d2d9d3fdf7ba3"));
 
@@ -164,7 +174,7 @@ public:
         checkpointData = (CCheckpointData) {
             boost::assign::map_list_of
             ( 0, uint256S("0x00000bb3fa6e7040e32c0f8e8218e928c37e177139b62ae1daba803e0543c175")),
-      1517356800UL,     // * UNIX timestamp of last checkpoint block
+            1517356800UL,     // * UNIX timestamp of last checkpoint block
             0,//1998064,    // * total number of transactions between genesis and last checkpoint
                             //   (the tx=... number in the SetBestChain debug.log lines)
             2800            // * estimated number of transactions per day after checkpoint
@@ -180,7 +190,9 @@ class CTestNetParams : public CChainParams {
 public:
     CTestNetParams() {
         strNetworkID = "test";
+        consensus.nSubsidyHalvingInterval = 2 * 525600; // Halving per 2 years (one block per minute - number of blocks per year is 360 * 24 * 60 = 525600)
         consensus.nInstantSendKeepLock = 6;
+        consensus.nMasternodeMinimumConfirmations = 1;
         consensus.nMajorityEnforceBlockUpgrade = 51;
         consensus.nMajorityRejectBlockOutdated = 75;
         consensus.nMajorityWindow = 100;
@@ -208,6 +220,13 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nThreshold = 50; // 50% of 100
 
+        // Deployment of FIP0001
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].bit = 2;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nStartTime = 1584316800; // Mar 12th, 2020
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nTimeout = 1615507200; // Mar 12th, 2021
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nWindowSize = 50;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nThreshold = 25; // 50% of 50
+
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
@@ -219,9 +238,9 @@ public:
          * by 0x80 to reach ASCII extended table values.
          */
         pchMessageStart[0] = 0xD4; // 'T' + 0x80
-        pchMessageStart[1] = 0xD2;   // 'R' + 0x80
-        pchMessageStart[2] = 0xD4;   // 'T' + 0x80
-        pchMessageStart[3] = 0xC6;   // 'F' + 0x80
+        pchMessageStart[1] = 0xD2; // 'R' + 0x80
+        pchMessageStart[2] = 0xD4; // 'T' + 0x80
+        pchMessageStart[3] = 0xC6; // 'F' + 0x80
         vAlertPubKey = ParseHex("04df473119137884b6b57ea26dc53fad605f3f14315cd0041da30651e777d5f8a4228e3e701508aba3216685657465bbd64a5200163f3a4135af15b3189ccbc6dc");
         nDefaultPort = 19009;
         nMaxTipAge = 0x7fffffff; // allow mining on top of old blocks for testnet
@@ -287,7 +306,9 @@ class CRegTestParams : public CChainParams {
 public:
     CRegTestParams() {
         strNetworkID = "regtest";
+        consensus.nSubsidyHalvingInterval = 30; // Halving per 30 minutes (one block per minute)
         consensus.nInstantSendKeepLock = 6;
+        consensus.nMasternodeMinimumConfirmations = 1;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
@@ -308,6 +329,9 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].bit = 1;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nTimeout = 999999999999ULL;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].bit = 2;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nStartTime = 0;
+        consensus.vDeployments[Consensus::DEPLOYMENT_FIP0001].nTimeout = 999999999999ULL;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");

@@ -5,6 +5,7 @@
 #include "versionbits.h"
 
 #include "consensus/params.h"
+#include "util.h"
 
 const struct BIP9DeploymentInfo VersionBitsDeploymentInfo[Consensus::MAX_VERSION_BITS_DEPLOYMENTS] = {
     {
@@ -21,6 +22,11 @@ const struct BIP9DeploymentInfo VersionBitsDeploymentInfo[Consensus::MAX_VERSION
         /*.name =*/ "dip0001",
         /*.gbt_force =*/ true,
         /*.check_mn_protocol =*/ true,
+    },
+    {
+        /*.name =*/ "fip0001",
+        /*.gbt_force =*/ true,
+        /*.check_mn_protocol =*/ false
     }
 };
 
@@ -102,6 +108,7 @@ ThresholdState AbstractThresholdConditionChecker::GetStateFor(const CBlockIndex*
                 break;
             }
         }
+
         cache[pindexPrev] = state = stateNext;
     }
 

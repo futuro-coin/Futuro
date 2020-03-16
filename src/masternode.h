@@ -30,19 +30,27 @@ class CMasternodePing
 {
 public:
     CPubKey pubKeyMasternode{};
+    CTxIn vin{};
     uint256 blockHash{};
     int64_t sigTime{}; //mnb message times
     std::vector<unsigned char> vchSig{};
 
     CMasternodePing() = default;
 
+    CMasternodePing(const COutPoint& outpoint);
     CMasternodePing(const CPubKey& pubKey);
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(pubKeyMasternode);
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            READWRITE(vin);
+        } else {
+            READWRITE(pubKeyMasternode);
+        }
+
         READWRITE(blockHash);
         READWRITE(sigTime);
         READWRITE(vchSig);
@@ -51,23 +59,34 @@ public:
     uint256 GetHash() const
     {
         CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
-        ss << pubKeyMasternode;
+
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            ss << vin;
+        } else {
+            ss << pubKeyMasternode;
+        }
+
         ss << sigTime;
         return ss.GetHash();
     }
 
     bool IsExpired() const { return GetAdjustedTime() - sigTime > MASTERNODE_NEW_START_REQUIRED_SECONDS; }
 
+    bool SignMnRel(const CKey& keyMasternode, const CPubKey& pubKeyMasternode);
     bool Sign(const CKey& keyMasternode, const CPubKey& pubKeyMasternode);
+    bool CheckSignatureMnRel(CPubKey& pubKeyMasternode, int &nDos);
     bool CheckSignature(CPubKey& pubKeyMasternode, int &nDos);
+    bool SimpleCheckMnRel(int& nDos);
     bool SimpleCheck(int& nDos);
+    bool CheckAndUpdateMnRel(CMasternode* pmn, bool fFromNewBroadcast, int& nDos, CConnman& connman);
     bool CheckAndUpdate(CMasternode* pmn, bool fFromNewBroadcast, int& nDos, CConnman& connman);
     void Relay(CConnman& connman);
 };
 
 inline bool operator==(const CMasternodePing& a, const CMasternodePing& b)
 {
-    return a.pubKeyMasternode == b.pubKeyMasternode && a.blockHash == b.blockHash;
+    return (fMasterNodesReleased ? a.vin == b.vin : a.pubKeyMasternode == b.pubKeyMasternode) && a.blockHash == b.blockHash;
 }
 inline bool operator!=(const CMasternodePing& a, const CMasternodePing& b)
 {
@@ -84,19 +103,41 @@ struct masternode_info_t
     masternode_info_t(int activeState, int protoVer, int64_t sTime) :
         nActiveState{activeState}, nProtocolVersion{protoVer}, sigTime{sTime} {}
 
+    // SPORK_14_MNODES_RELEASE_ENABLED
     masternode_info_t(int activeState, int protoVer, int64_t sTime,
-                      CService const& addr,
-                      CPubKey const& pkMN,
+                      COutPoint const& outpoint, CService const& addr,
+                      CPubKey const& pkCollAddr, CPubKey const& pkMN,
+                      int64_t tWatchdogV = 0):
+        nActiveState{activeState}, nProtocolVersion{protoVer}, sigTime{sTime},
+        vin{outpoint}, addr{addr},
+        pubKeyCollateralAddress{pkCollAddr}, pubKeyMasternode{pkMN} {}
+
+    // SPORK_14_MNODES_RELEASE_ENABLED
+    masternode_info_t(int activeState, int protoVer, int64_t sTime,
+                      COutPoint const& outpoint, CService const& addr,
+                      CPubKey const& pkCollAddr, CPubKey const& pkMN,
                       CBitcoinAddress const& payeeAddress,
                       int64_t tWatchdogV = 0):
         nActiveState{activeState}, nProtocolVersion{protoVer}, sigTime{sTime},
-        addr{addr}, pubKeyMasternode{pkMN}, payee{payeeAddress} {}
+        vin{outpoint}, addr{addr},
+        pubKeyCollateralAddress{pkCollAddr}, pubKeyMasternode{pkMN}, payee{payeeAddress} {}
+
+    masternode_info_t(int activeState, int protoVer, int64_t sTime,
+                     CService const& addr,
+                     CPubKey const& pkMN,
+                     CBitcoinAddress const& payeeAddress,
+                     int64_t tWatchdogV = 0):
+        nActiveState{activeState}, nProtocolVersion{protoVer}, sigTime{sTime},
+        addr{addr},
+        pubKeyMasternode{pkMN}, payee{payeeAddress} {}
 
     int nActiveState = 0;
     int nProtocolVersion = 0;
     int64_t sigTime = 0; //mnb message time
 
+    CTxIn vin{};
     CService addr{};
+    CPubKey pubKeyCollateralAddress{};
     CPubKey pubKeyMasternode{};
     CBitcoinAddress payee{};
 
@@ -122,6 +163,7 @@ public:
         MASTERNODE_PRE_ENABLED,
         MASTERNODE_ENABLED,
         MASTERNODE_EXPIRED,
+        MASTERNODE_OUTPOINT_SPENT,
         MASTERNODE_UPDATE_REQUIRED,
         MASTERNODE_NEW_START_REQUIRED,
         MASTERNODE_POSE_BAN
@@ -146,17 +188,31 @@ public:
     CMasternode();
     CMasternode(const CMasternode& other);
     CMasternode(const CMasternodeBroadcast& mnb);
-    CMasternode(CService addrNew, CPubKey pubKeyMasternodeNew,
-                CBitcoinAddress payee, int nProtocolVersionIn);
+    CMasternode(CService addrNew, COutPoint outpointNew, CPubKey pubKeyCollateralAddressNew, CPubKey pubKeyMasternodeNew, int nProtocolVersionIn);
+    CMasternode(CService addrNew, CPubKey pubKeyMasternodeNew, CBitcoinAddress payee, int nProtocolVersionIn);
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         LOCK(cs);
-        READWRITE(addr);
+
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            READWRITE(vin);
+            READWRITE(addr);
+            READWRITE(pubKeyCollateralAddress);
+        } else {
+            READWRITE(addr);
+        }
+
         READWRITE(pubKeyMasternode);
-        READWRITE(payee);
+
+        if (!fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED not active
+            READWRITE(payee);
+        }
+
         READWRITE(lastPing);
         READWRITE(vchSig);
         READWRITE(sigTime);
@@ -177,6 +233,10 @@ public:
 
     bool UpdateFromNewBroadcast(CMasternodeBroadcast& mnb, CConnman& connman);
 
+    static CollateralStatus CheckCollateral(const COutPoint& outpoint);
+    static CollateralStatus CheckCollateral(const COutPoint& outpoint, int& nHeightRet);
+
+    void CheckMnRel(bool fForce = false);
     void Check(bool fForce = false);
 
     bool IsBroadcastedWithin(int nSeconds) { return GetAdjustedTime() - sigTime < nSeconds; }
@@ -197,6 +257,7 @@ public:
     // NOTE: this one relies on nPoSeBanScore, not on nActiveState as everything else here
     bool IsPoSeVerified() { return nPoSeBanScore <= -MASTERNODE_POSE_BAN_MAX_SCORE; }
     bool IsExpired() { return nActiveState == MASTERNODE_EXPIRED; }
+    bool IsOutpointSpent() { return nActiveState == MASTERNODE_OUTPOINT_SPENT; }
     bool IsUpdateRequired() { return nActiveState == MASTERNODE_UPDATE_REQUIRED; }
     bool IsNewStartRequired() { return nActiveState == MASTERNODE_NEW_START_REQUIRED; }
 
@@ -215,6 +276,9 @@ public:
 
         return false;
     }
+
+    /// Is the input associated with collateral public key? (and there is 100000 FUTURO - checking if valid masternode)
+    bool IsInputAssociatedWithPubkey();
 
     bool IsValidNetAddr();
     static bool IsValidNetAddr(CService addrIn);
@@ -249,11 +313,11 @@ public:
 
 inline bool operator==(const CMasternode& a, const CMasternode& b)
 {
-    return a.pubKeyMasternode == b.pubKeyMasternode;
+    return fMasterNodesReleased ? a.vin == b.vin : a.pubKeyMasternode == b.pubKeyMasternode;
 }
 inline bool operator!=(const CMasternode& a, const CMasternode& b)
 {
-    return !(a.pubKeyMasternode == b.pubKeyMasternode);
+    return fMasterNodesReleased ? !(a.vin == b.vin) : !(a.pubKeyMasternode == b.pubKeyMasternode && a.vin == b.vin);
 }
 
 
@@ -269,18 +333,31 @@ public:
 
     CMasternodeBroadcast() : CMasternode(), fRecovery(false) {}
     CMasternodeBroadcast(const CMasternode& mn) : CMasternode(mn), fRecovery(false) {}
-    CMasternodeBroadcast(CService addrNew, CPubKey pubKeyMasternodeNew,
-                         CBitcoinAddress payee, int nProtocolVersionIn) :
-        CMasternode(addrNew, pubKeyMasternodeNew, payee,
-                    nProtocolVersionIn), fRecovery(false) {}
+    CMasternodeBroadcast(CService addrNew, CPubKey pubKeyMasternodeNew, CBitcoinAddress payee, int nProtocolVersionIn) :
+        CMasternode(addrNew, pubKeyMasternodeNew, payee, nProtocolVersionIn), fRecovery(false) {}
+    CMasternodeBroadcast(CService addrNew, COutPoint outpointNew, CPubKey pubKeyCollateralAddressNew, CPubKey pubKeyMasternodeNew, int nProtocolVersionIn) :
+        CMasternode(addrNew, outpointNew, pubKeyCollateralAddressNew, pubKeyMasternodeNew, nProtocolVersionIn), fRecovery(false) {}
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(addr);
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            READWRITE(vin);
+            READWRITE(addr);
+            READWRITE(pubKeyCollateralAddress);
+        } else {
+            READWRITE(addr);
+        }
+
         READWRITE(pubKeyMasternode);
-        READWRITE(payee);
+
+        if (!fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED not active
+        	READWRITE(payee);
+        }
+
         READWRITE(vchSig);
         READWRITE(sigTime);
         READWRITE(nProtocolVersion);
@@ -290,8 +367,16 @@ public:
     uint256 GetHash() const
     {
         CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
-        ss << pubKeyMasternode;
-        ss << payee;
+
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            ss << vin;
+            ss << pubKeyCollateralAddress;
+        } else {
+            ss << pubKeyMasternode;
+            ss << payee;
+        }
+
         ss << sigTime;
         return ss.GetHash();
     }
@@ -306,11 +391,24 @@ public:
                        std::string& strErrorRet, CMasternodeBroadcast &mnbRet,
                        bool fOffline = false);
 
+    static bool Create(const COutPoint& outpoint, const CService& service,
+                       const CKey& keyCollateralAddressNew, const CPubKey& pubKeyCollateralAddressNew,
+                       const CKey& keyMasternodeNew, const CPubKey& pubKeyMasternodeNew,
+                       std::string &strErrorRet, CMasternodeBroadcast &mnbRet);
+    static bool Create(std::string strService, std::string strKey, std::string strTxHash,
+                       std::string strOutputIndex, std::string& strErrorRet,
+                       CMasternodeBroadcast &mnbRet, bool fOffline = false);
+
+    bool SimpleCheckMnRel(int& nDos);
     bool SimpleCheck(int& nDos);
+    bool UpdateMnRel(CMasternode* pmn, int& nDos, CConnman& connman);
     bool Update(CMasternode* pmn, int& nDos, CConnman& connman);
+    bool CheckOutpoint(int& nDos);
     bool CheckMasternode(int& nDos);
 
+    bool SignMnRel(const CKey& keyCollateralAddress);
     bool Sign(const CKey& keyMasternode);
+    bool CheckSignatureMnRel(int& nDos);
     bool CheckSignature(int& nDos);
     void Relay(CConnman& connman);
 };
@@ -318,6 +416,8 @@ public:
 class CMasternodeVerification
 {
 public:
+    CTxIn vin1{};
+    CTxIn vin2{};
     CPubKey pubKey1{};
     CPubKey pubKey2{};
     CService addr{};
@@ -338,8 +438,15 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(pubKey1);
-        READWRITE(pubKey2);
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            READWRITE(vin1);
+            READWRITE(vin2);
+        } else {
+            READWRITE(pubKey1);
+            READWRITE(pubKey2);
+        }
+
         READWRITE(addr);
         READWRITE(nonce);
         READWRITE(nBlockHeight);
@@ -350,8 +457,16 @@ public:
     uint256 GetHash() const
     {
         CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
-        ss << pubKey1;
-        ss << pubKey2;
+
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            ss << vin1;
+            ss << vin2;
+        } else {
+            ss << pubKey1;
+            ss << pubKey2;
+        }
+
         ss << addr;
         ss << nonce;
         ss << nBlockHeight;

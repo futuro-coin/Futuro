@@ -58,12 +58,14 @@ private:
     int nCachedBlockHeight;
 
     // map to hold all MNs
+    std::map<COutPoint, CMasternode> mapMasternodesMnRel;
     std::map<CPubKey, CMasternode> mapMasternodes;
     // who's asked for the Masternode list and the last time
     std::map<CNetAddr, int64_t> mAskedUsForMasternodeList;
     // who we asked for the Masternode list and the last time
     std::map<CNetAddr, int64_t> mWeAskedForMasternodeList;
     // which Masternodes we've asked for
+    std::map<COutPoint, std::map<CNetAddr, int64_t> > mWeAskedForMasternodeListEntryMnRel;
     std::map<CPubKey, std::map<CNetAddr, int64_t> > mWeAskedForMasternodeListEntry;
     // who we asked for the masternode verification
     std::map<CNetAddr, CMasternodeVerification> mWeAskedForVerification;
@@ -81,6 +83,7 @@ private:
 
     friend class CMasternodeSync;
     /// Find an entry
+    CMasternode* Find(const COutPoint& outpoint);
     CMasternode* Find(const CPubKey& pubKey);
 
     bool GetMasternodeScores(const uint256& nBlockHash, score_pair_vec_t& vecMasternodeScoresRet, int nMinProtocol = 0);
@@ -107,10 +110,23 @@ public:
             READWRITE(strVersion);
         }
 
-        READWRITE(mapMasternodes);
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            READWRITE(mapMasternodesMnRel);
+        } else {
+            READWRITE(mapMasternodes);
+        }
+
         READWRITE(mAskedUsForMasternodeList);
         READWRITE(mWeAskedForMasternodeList);
-        READWRITE(mWeAskedForMasternodeListEntry);
+
+        if (fMasterNodesReleased) {
+            // SPORK_14_MNODES_RELEASE_ENABLED active
+            READWRITE(mWeAskedForMasternodeListEntryMnRel);
+        } else {
+            READWRITE(mWeAskedForMasternodeListEntry);
+        }
+
         READWRITE(mMnbRecoveryRequests);
         READWRITE(mMnbRecoveryGoodReplies);
 
@@ -127,15 +143,21 @@ public:
     bool Add(CMasternode &mn);
 
     /// Ask (source) node for mnb
+    void AskForMN(CNode *pnode, const COutPoint& outpoint, CConnman& connman);
     void AskForMN(CNode *pnode, const CPubKey& pubKey, CConnman& connman);
     void AskForMnb(CNode *pnode, const uint256 &hash);
 
+    bool PoSeBan(const COutPoint &outpoint);
+    bool AllowMixing(const COutPoint &outpoint);
+    bool DisallowMixing(const COutPoint &outpoint);
     bool PoSeBan(const CPubKey& pubKey);
 
     /// Check all Masternodes
+    void CheckMnRel();
     void Check();
 
     /// Check all Masternodes and remove inactive
+    void CheckAndRemoveMnRel(CConnman& connman);
     void CheckAndRemove(CConnman& connman);
     /// This is dummy overload to be used for dumping/loading mncache.dat
     void CheckAndRemove() {}
@@ -156,22 +178,32 @@ public:
     void DsegUpdate(CNode* pnode, CConnman& connman);
 
     /// Versions of Find that are safe to use from outside the class
+    bool Get(const COutPoint& outpoint, CMasternode& masternodeRet);
+    bool Has(const COutPoint& outpoint);
     bool Get(const CPubKey& pubKey, CMasternode& masternodeRet);
     bool Has(const CPubKey& pubKey);
 
+    bool GetMasternodeInfo(const COutPoint& outpoint, masternode_info_t& mnInfoRet);
+    bool GetMasternodeInfoMnRel(const CPubKey& pubKeyMasternode, masternode_info_t& mnInfoRet);
     bool GetMasternodeInfo(const CPubKey& pubKeyMasternode, masternode_info_t& mnInfoRet);
+    bool GetMasternodeInfoMnRel(const CScript& payee, masternode_info_t& mnInfoRet);
     bool GetMasternodeInfo(const CScript& payee, masternode_info_t& mnInfoRet);
 
     /// Find an entry in the masternode list that is next to be paid
+    bool GetNextMasternodeInQueueForPaymentMnRel(int nBlockHeight, bool fFilterSigTime, bool fFilterScheduled, int& nCountRet, masternode_info_t& mnInfoRet);
     bool GetNextMasternodeInQueueForPayment(int nBlockHeight, bool fFilterSigTime, bool fFilterScheduled, int& nCountRet, masternode_info_t& mnInfoRet);
     /// Same as above but use current block height
+    bool GetNextMasternodeInQueueForPaymentMnRel(bool fFilterSigTime, bool fFilterScheduled, int& nCountRet, masternode_info_t& mnInfoRet);
     bool GetNextMasternodeInQueueForPayment(bool fFilterSigTime, bool fFilterScheduled, int& nCountRet, masternode_info_t& mnInfoRet);
 
     /// Find a random entry
+    masternode_info_t FindRandomNotInVec(const std::vector<COutPoint> &vecToExclude, int nProtocolVersion = -1);
 
+    std::map<COutPoint, CMasternode> GetFullMasternodeMapMnRel() { return mapMasternodesMnRel; }
     std::map<CPubKey, CMasternode> GetFullMasternodeMap() { return mapMasternodes; }
 
     bool GetMasternodeRanks(rank_pair_vec_t& vecMasternodeRanksRet, int nBlockHeight = -1, int nMinProtocol = 0);
+    bool GetMasternodeRank(const COutPoint &outpoint, int& nRankRet, int nBlockHeight = -1, int nMinProtocol = 0);
     bool GetMasternodeRank(const CPubKey &pubKey, int& nRankRet, int nBlockHeight = -1, int nMinProtocol = 0);
     bool GetMasternodeByRank(int nRank, masternode_info_t& mnInfoRet, int nBlockHeight = -1, int nMinProtocol = 0);
 
@@ -188,20 +220,25 @@ public:
     void ProcessVerifyBroadcast(CNode* pnode, const CMasternodeVerification& mnv);
 
     /// Return the number of (unique) Masternodes
-    int size() { return mapMasternodes.size(); }
+    int size() { return fMasterNodesReleased ? mapMasternodesMnRel.size() : mapMasternodes.size(); }
 
     std::string ToString() const;
 
     /// Update masternode list and maps using provided CMasternodeBroadcast
     void UpdateMasternodeList(CMasternodeBroadcast mnb, CConnman& connman);
     /// Perform complete check and only then update list and maps
+    bool CheckMnbAndUpdateMasternodeListMnRel(CNode* pfrom, CMasternodeBroadcast mnb, int& nDos, CConnman& connman);
     bool CheckMnbAndUpdateMasternodeList(CNode* pfrom, CMasternodeBroadcast mnb, int& nDos, CConnman& connman);
     bool IsMnbRecoveryRequested(const uint256& hash) { return mMnbRecoveryRequests.count(hash); }
 
+    void UpdateLastPaidMnRel(const CBlockIndex* pindex);
     void UpdateLastPaid(const CBlockIndex* pindex);
 
+    void CheckMasternodeMnRel(const CPubKey& pubKeyMasternode, bool fForce);
     void CheckMasternode(const CPubKey& pubKeyMasternode, bool fForce);
 
+    bool IsMasternodePingedWithin(const COutPoint& outpoint, int nSeconds, int64_t nTimeToCheckAt = -1);
+    void SetMasternodeLastPing(const COutPoint& outpoint, const CMasternodePing& mnp);
     bool IsMasternodePingedWithin(const CPubKey& pubKey, int nSeconds, int64_t nTimeToCheckAt = -1);
     void SetMasternodeLastPing(const CPubKey& pubKey, const CMasternodePing& mnp);
 

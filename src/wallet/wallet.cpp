@@ -2565,6 +2565,8 @@ bool CWallet::GetMasternodeOutpointAndKeys(COutPoint& outpointRet, CPubKey& pubK
         return false;
     }
 
+    LogPrintf("CWallet::GetMasternodeOutpointAndKeys -- vPossibleCoins size: %d\n", vPossibleCoins.size());
+
     if(strTxHash.empty()) // No output specified, select the first one
         return GetOutpointAndKeysFromOutput(vPossibleCoins[0], outpointRet, pubKeyRet, keyRet);
 

@@ -13,8 +13,9 @@ class CActiveMasternode;
 
 static const int ACTIVE_MASTERNODE_INITIAL          = 0; // initial state
 static const int ACTIVE_MASTERNODE_SYNC_IN_PROCESS  = 1;
-static const int ACTIVE_MASTERNODE_NOT_CAPABLE      = 2;
-static const int ACTIVE_MASTERNODE_STARTED          = 3;
+static const int ACTIVE_MASTERNODE_INPUT_TOO_NEW    = 2;
+static const int ACTIVE_MASTERNODE_NOT_CAPABLE      = 3;
+static const int ACTIVE_MASTERNODE_STARTED          = 4;
 
 extern CActiveMasternode activeMasternode;
 
@@ -24,7 +25,8 @@ class CActiveMasternode
 public:
     enum masternode_type_enum_t {
         MASTERNODE_UNKNOWN = 0,
-        MASTERNODE_REMOTE  = 1
+        MASTERNODE_REMOTE  = 1,
+        MASTERNODE_LOCAL   = 2
     };
 
 private:
@@ -71,6 +73,7 @@ public:
 private:
     void ManageStateInitial(CConnman& connman);
     void ManageStateRemote();
+    void ManageStateLocal(CConnman& connman);
 };
 
 #endif

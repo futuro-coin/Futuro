@@ -54,6 +54,7 @@ private:
     std::map<COutPoint, uint256> mapLockedOutpoints; // utxo - tx hash
 
     //track masternodes who voted with no txreq (for DOS protection)
+    std::map<COutPoint, int64_t> mapMasternodeOrphanVotesMnRel; // mn outpoint - time
     std::map<CPubKey, int64_t> mapMasternodeOrphanVotes; // mn outpoint - time
 
     bool CreateTxLockCandidate(const CTxLockRequest& txLockRequest);
@@ -137,6 +138,7 @@ class CTxLockVote
 private:
     uint256 txHash;
     COutPoint outpoint;
+    COutPoint outpointMasternode;
     CPubKey masternodePubKey;
     std::vector<unsigned char> vchMasternodeSignature;
     // local memory only
@@ -147,11 +149,21 @@ public:
     CTxLockVote() :
         txHash(),
         outpoint(),
+        outpointMasternode(),
         masternodePubKey(),
         vchMasternodeSignature(),
         nConfirmedHeight(-1),
         nTimeCreated(GetTime())
         {}
+
+    CTxLockVote(const uint256& txHashIn, const COutPoint& outpointIn, const COutPoint& outpointMasternodeIn) :
+            txHash(txHashIn),
+            outpoint(outpointIn),
+            outpointMasternode(outpointMasternodeIn),
+            vchMasternodeSignature(),
+            nConfirmedHeight(-1),
+            nTimeCreated(GetTime())
+            {}
 
     CTxLockVote(const uint256& txHashIn, const COutPoint& outpointIn, const CPubKey& mnPubKey) :
         txHash(txHashIn),
@@ -168,6 +180,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(txHash);
         READWRITE(outpoint);
+        READWRITE(outpointMasternode);
         READWRITE(masternodePubKey);
         READWRITE(vchMasternodeSignature);
     }
@@ -176,6 +189,7 @@ public:
 
     uint256 GetTxHash() const { return txHash; }
     COutPoint GetOutpoint() const { return outpoint; }
+    COutPoint GetMasternodeOutpoint() const { return outpointMasternode; }
     CPubKey GetMasternodePubKey() const { return masternodePubKey; }
 
     bool IsValid(CNode* pnode, CConnman& connman) const;
@@ -193,6 +207,7 @@ class COutPointLock
 {
 private:
     COutPoint outpoint; // utxo
+    std::map<COutPoint, CTxLockVote> mapMasternodeVotesMnRel; // masternode outpoint - vote
     std::map<CPubKey, CTxLockVote> mapMasternodeVotes; // masternode outpoint - vote
     bool fAttacked = false;
 
@@ -202,6 +217,7 @@ public:
 
     COutPointLock(const COutPoint& outpointIn) :
         outpoint(outpointIn),
+        mapMasternodeVotesMnRel(),
         mapMasternodeVotes()
         {}
 
@@ -209,8 +225,9 @@ public:
 
     bool AddVote(const CTxLockVote& vote);
     std::vector<CTxLockVote> GetVotes() const;
+    bool HasMasternodeVoted(const COutPoint& outpointMasternodeIn) const;
     bool HasMasternodeVoted(const CPubKey& mnPubKey) const;
-    int CountVotes() const { return fAttacked ? 0 : mapMasternodeVotes.size(); }
+    int CountVotes() const { return fAttacked ? 0 : (fMasterNodesReleased ? mapMasternodeVotesMnRel.size() : mapMasternodeVotes.size()); }
     bool IsReady() const { return !fAttacked && CountVotes() >= SIGNATURES_REQUIRED; }
     void MarkAsAttacked() { fAttacked = true; }
 
@@ -241,6 +258,7 @@ public:
     bool AddVote(const CTxLockVote& vote);
     bool IsAllOutPointsReady() const;
 
+    bool HasMasternodeVoted(const COutPoint& outpointIn, const COutPoint& outpointMasternodeIn);
     bool HasMasternodeVoted(const COutPoint& outpointIn, const CPubKey& mnPubKey);
     int CountVotes() const;
 

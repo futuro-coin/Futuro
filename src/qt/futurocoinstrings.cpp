@@ -507,4 +507,5 @@ QT_TRANSLATE_NOOP("futurocoin-core", "ZeroMQ notification options:"),
 QT_TRANSLATE_NOOP("futurocoin-core", "no mixing available."),
 QT_TRANSLATE_NOOP("futurocoin-core", "see debug.log for details."),
 QT_TRANSLATE_NOOP("futurocoin-core", "wallet.dat corrupt, salvage failed"),
+QT_TRANSLATE_NOOP("futurocoin-core", "Warning: Wallet balance is < %d FUTURO"),
 };

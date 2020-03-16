@@ -66,6 +66,11 @@ unsigned int static DarkGravityWave(const CBlockIndex* pindexLast, const Consens
 
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
+    if (Params().NetworkIDString() == CBaseChainParams::REGTEST && pindexLast->nHeight +1 < 10001){
+        const arith_uint256 bnPowLimit = UintToArith256(params.powLimit);
+        return bnPowLimit.GetCompact();
+    }
+    
     return DarkGravityWave(pindexLast, params);
 }
 

@@ -621,7 +621,7 @@ std::string LicenseInfo()
            "\n" +
            FormatParagraph(strprintf(_("Copyright (C) 2014-%i The Dash Core Developers"), COPYRIGHT_YEAR)) + "\n" +
            "\n" +
-           FormatParagraph(strprintf(_("Copyright (C) %i The FuturoCoin Core Developers"), COPYRIGHT_YEAR)) + "\n" +
+           FormatParagraph(strprintf(_("Copyright (C) 2017-%i The FuturoCoin Core Developers"), COPYRIGHT_YEAR)) + "\n" +
            "\n" +
            FormatParagraph(_("This is experimental software.")) + "\n" +
            "\n" +
@@ -1816,7 +1816,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     LogPrintf("Using masternode config file %s\n", GetMasternodeConfigFile().string());
 
-    /* ToDo: remove "mnconflock" from arguments list */
+    if (fMasterNodeNewConfig) {
+        LogPrintf("AppInit2 -- masternode configuration format for active spork SPORK_14_MNODES_RELEASE_ENABLED.\n");
+    } else {
+        LogPrintf("AppInit2 -- masternode configuration format for inactive spork SPORK_14_MNODES_RELEASE_ENABLED.\n");
+    }
 
     nInstantSendDepth = GetArg("-instantsenddepth", DEFAULT_INSTANTSEND_DEPTH);
     nInstantSendDepth = std::min(std::max(nInstantSendDepth, 0), 60);
