@@ -1,4 +1,4 @@
-FuturoCoin Core 1.0.0
+FuturoCoin Core 1.1.0
 =====================
 
 Intro
@@ -17,7 +17,3 @@ FuturoCoin Core is the original FuturoCoin client and it builds the backbone of 
 However, it downloads and stores the entire history of FuturoCoin transactions;
 depending on the speed of your computer and network connection, the synchronization
 process can take anywhere from a few hours to a day or more.
-
-See the futurocoin wiki at:
-  https://futurocoinpay.atlassian.net/wiki/
-for more help and information.

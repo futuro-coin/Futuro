@@ -1,4 +1,4 @@
-FuturoCoin Core 1.0.0
+FuturoCoin Core 1.1.0
 =====================
 
 This is the official reference wallet for FuturoCoin digital currency and comprises the backbone of the FuturoCoin peer-to-peer network. You can [download FuturoCoin Core](https://www.futurocoin.org/downloads/) or [build it yourself](#building) using the guides below.
