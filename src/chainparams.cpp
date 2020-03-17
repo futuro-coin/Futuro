@@ -72,7 +72,7 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         strNetworkID = "main";
-        consensus.nSubsidyHalvingInterval = 2 * 525600; // Halving per 2 years (one block per minute - number of blocks per year is 360 * 24 * 60 = 525600)
+        consensus.nSubsidyHalvingInterval = 2 * 525600; // Halving per 2 years (one block per minute - number of blocks per year is 365 * 24 * 60 = 525600)
         consensus.nInstantSendKeepLock = 24;
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nMajorityEnforceBlockUpgrade = 750;
