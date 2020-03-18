@@ -48,7 +48,6 @@ std::string CMasternodeSync::GetAssetName()
         case(MASTERNODE_SYNC_WAITING):      return "MASTERNODE_SYNC_WAITING";
         case(MASTERNODE_SYNC_LIST):         return "MASTERNODE_SYNC_LIST";
         case(MASTERNODE_SYNC_MNW):          return "MASTERNODE_SYNC_MNW";
-        case(MASTERNODE_SYNC_GOVERNANCE):   return "MASTERNODE_SYNC_GOVERNANCE";
         case(MASTERNODE_SYNC_FAILED):       return "MASTERNODE_SYNC_FAILED";
         case MASTERNODE_SYNC_FINISHED:      return "MASTERNODE_SYNC_FINISHED";
         default:                            return "UNKNOWN";
@@ -108,7 +107,6 @@ std::string CMasternodeSync::GetSyncStatus()
         case MASTERNODE_SYNC_WAITING:       return _("Synchronization pending...");
         case MASTERNODE_SYNC_LIST:          return _("Synchronizing masternodes...");
         case MASTERNODE_SYNC_MNW:           return _("Synchronizing masternode payments...");
-        case MASTERNODE_SYNC_GOVERNANCE:    return _("Synchronizing governance objects...");
         case MASTERNODE_SYNC_FAILED:        return _("Synchronization failed");
         case MASTERNODE_SYNC_FINISHED:      return _("Synchronization finished");
         default:                            return "";
